@@ -4,6 +4,7 @@
 #include "sendto_dbg.h"
 
 #define NAME_LENGTH 80
+#define CONN_BUF_SIZE 81
 
 int main(int argc, char **argv) {
   /* Variables for file read */
@@ -11,6 +12,7 @@ int main(int argc, char **argv) {
   char *dest_file_name;
   FILE *fr;
   char buf[BUF_SIZE];
+  char conn_buf[CONN_BUF_SIZE];
   int nread;
 
   /* Variables for UDP transfer */
@@ -93,6 +95,12 @@ int main(int argc, char **argv) {
   send_addr.sin_family = AF_INET;
   send_addr.sin_addr.s_addr = host_num;
   send_addr.sin_port = htons(PORT);
+  
+  /* Send the hello package to rcv */
+  conn_buf[0] = '0'; // Header for hello packet
+  memcpy(conn_buf + sizeof(char), dest_file_name, strlen(dest_file_name) + 1);
+  sendto(ss, conn_buf, strlen(conn_buf), 0,
+		 (struct sockaddr *)&send_addr, sizeof(send_addr)); 
 
   /* Open the source file for reading */
   if ((fr = fopen(file_name, "r")) == NULL) {
@@ -102,13 +110,16 @@ int main(int argc, char **argv) {
   printf("Opened %s for reading...\n", file_name);
 
   while (1) {
+    
+    /* Set the header of the package */
+    buf[0] = '1';
 
     /* Read in a chunk of the file */
-    nread = fread(buf, 1, BUF_SIZE, fr);
+    nread = fread(buf + sizeof(char), 1, BUF_SIZE, fr);
 
     /* If there is something to write, write it */
     if (nread > 0) {
-      sendto(ss, buf, nread, 0, (struct sockaddr *)&send_addr,
+      sendto(ss, buf, nread + sizeof(char), 0, (struct sockaddr *)&send_addr,
              sizeof(send_addr));
     }
 
