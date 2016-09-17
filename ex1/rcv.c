@@ -121,6 +121,9 @@ int main(int argc, char **argv) {
                (htonl(from_ip) & 0x00ff0000) >> 16,
                (htonl(from_ip) & 0x0000ff00) >> 8,
                (htonl(from_ip) & 0x000000ff), mess_buf);
+	if (bytes < 10) {
+          break;
+	}
       }
     }
   }

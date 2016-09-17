@@ -106,13 +106,11 @@ int main(int argc, char **argv) {
 
     /* Read in a chunk of the file */
     nread = fread(buf, 1, BUF_SIZE, fr);
-    printf("Before sending: %s\n", buf);
 
     /* If there is something to write, write it */
     if (nread > 0) {
-      sendto(ss, buf, strlen(buf), 0, (struct sockaddr *)&send_addr,
+      sendto(ss, buf, nread, 0, (struct sockaddr *)&send_addr,
              sizeof(send_addr));
-      printf("After sending: %s\n", buf);
     }
 
     /* fread returns a short count either at EOF or when an error occurred */
