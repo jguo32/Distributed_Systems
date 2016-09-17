@@ -15,4 +15,4 @@
 #define PORT	     10270
 
 #define MAX_MESS_LEN 1400
-
+#define BUF_SIZE 100

@@ -3,7 +3,6 @@
 #include "net_include.h"
 #include "sendto_dbg.h"
 
-#define BUF_SIZE 10
 #define NAME_LENGTH 80
 
 int main(int argc, char **argv) {
