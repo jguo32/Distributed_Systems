@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
   int nread;
   int bytes; //the length of content receives from rcv
   int num;   //check if the there is msg coming
-  int status; //sender status (0:init connection, 1:transfer, 2:close conection)
+  int status; //sender status (0:init connection, 1:file transfer, 2:close conection)
   
   /* Variables for UDP transfer */
   struct sockaddr_in name;
@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
 
   FD_ZERO(&mask);
   FD_ZERO(&dummy_mask);
-  FD_SET(sr, &mask);
+  FD_SET(ss, &mask);
   
   /* Send the hello package to rcv */
   conn_buf[0] = '0'; // Header for hello packet
@@ -124,24 +124,6 @@ int main(int argc, char **argv) {
     if (status == 0) { // init connection
       sendto(ss, conn_buf, strlen(conn_buf), 0,
 	     (struct sockaddr *)&send_addr, sizeof(send_addr));
-      
-      temp_mask = mask;
-      timeout.tv_sec = 5; // 5 sec timeout to resend
-      timeout.tv_usec = 0;
-
-      num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
-      
-      if (num > 0) {
-	if (FD_ISSET(sr, &temp_mask)) {
-	  from_len = sizeof(from_addr);
-	  bytes = recvfrom(sr, mess_buf, sizeof(mess_buf), 0,
-			   (struct sockaddr *)&from_addr, &from_len);
-	  if (mess_buf[0] == '1') {
-	    printf("get receiver ack, start to send ack to receiver");
-	  }
-	}
-      }
-      printf("haven't receive ack");
      } else if (status == 1) {
     
       /* Set the header of the package */
@@ -167,7 +149,43 @@ int main(int argc, char **argv) {
 	}
       }
     } else if (status == 2) {
+    } else if (status == 3) {
+      conn_buf[0] = '3';
+      sendto(ss, conn_buf, strlen(conn_buf), 0,
+	     (struct sockaddr *)&send_addr, sizeof(send_addr));
+      status = 2;
+      printf("start to transfer file. \n");
     }
+
+    //receive 
+    temp_mask = mask;
+    timeout.tv_sec = 5; // 5 sec timeout to resend
+    timeout.tv_usec = 0;
+
+    num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
+    printf("status: %d\n", status);  
+    if (num > 0) {
+      if (FD_ISSET(ss, &temp_mask)) {
+	printf("msg type: %c\n", mess_buf[0]);
+	from_len = sizeof(from_addr);
+	bytes = recvfrom(ss, mess_buf, sizeof(mess_buf), 0,
+			 (struct sockaddr *)&from_addr, &from_len);
+	if (mess_buf[0] == '1') {
+	  if (status == 0 || status == 2) {
+	    //sender would send another ack and then change to file transfer status
+	    printf("get receiver ack, start to send ack to receiver.\n");
+	    conn_buf[0] = '3';
+	    sendto(ss, conn_buf, strlen(conn_buf), 0,
+		   (struct sockaddr *)&send_addr, sizeof(send_addr));
+	    status = 2;
+
+	    continue;
+	  }
+	}
+      }
+    }
+    printf("time out ... haven't receive any ack.\n");
+    
   }
 
   /* Cleaup files */

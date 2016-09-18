@@ -18,6 +18,7 @@ int main(int argc, char **argv) {
   int nwritten;
   int bytes;
   int num;
+  int status; //(-1:free; 0: connection,send ack to sender; 1:file transfer, send packet ack; 2: )
   char mess_buf[MAX_MESS_LEN];
   char ack_buf[ACK_BUF_SIZE];
 
@@ -87,62 +88,80 @@ int main(int argc, char **argv) {
   FD_ZERO(&dummy_mask);
   FD_SET(sr, &mask);
   // FD_SET((long)0, &mask);
+  status = -1;
+  
   while (1) {
+
+    //receive
     temp_mask = mask;
     timeout.tv_sec = 10;
     timeout.tv_usec = 0;
     num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
-
+    printf("status: %d\n", status);
     if (num > 0) {
       if (FD_ISSET(sr, &temp_mask)) {
         from_len = sizeof(from_addr);
         bytes = recvfrom(sr, mess_buf, sizeof(mess_buf), 0,
                          (struct sockaddr *)&from_addr, &from_len);
-
+	printf("msg type: %c\n", mess_buf[0]);
+	//check msg type
         if (mess_buf[0] == '0') {
-          from_ip = from_addr.sin_addr.s_addr;
+	  if (status == -1) {
+	    from_ip = from_addr.sin_addr.s_addr;
+	    status = 0; //change status, start connection
+	  
+	    /* Open or create the destination file for writing */
+	    if ((fw = fopen(mess_buf + sizeof(char), "w")) == NULL) {
+	      perror("fopen");
+	      exit(0);
+	    }
 
-	  ack_buf[0] = '1';
-	  sendto(sr, ack_buf, strlen(ack_buf), 0,
-	  	 (struct sockaddr *)&from_addr, sizeof(from_addr));
-
-          /* Open or create the destination file for writing */
-          if ((fw = fopen(mess_buf + sizeof(char), "w")) == NULL) {
-            perror("fopen");
-            exit(0);
-          }
-
-          printf("Received transfer request from (%d.%d.%d.%d), destination "
-                 "file: %s\n",
-                 (htonl(from_ip) & 0xff000000) >> 24,
-                 (htonl(from_ip) & 0x00ff0000) >> 16,
-                 (htonl(from_ip) & 0x0000ff00) >> 8,
-                 (htonl(from_ip) & 0x000000ff), mess_buf + sizeof(char));
-
+	    printf("Received transfer request from (%d.%d.%d.%d), destination "
+		   "file: %s\n",
+		   (htonl(from_ip) & 0xff000000) >> 24,
+		   (htonl(from_ip) & 0x00ff0000) >> 16,
+		   (htonl(from_ip) & 0x0000ff00) >> 8,
+		   (htonl(from_ip) & 0x000000ff), mess_buf + sizeof(char));
+	  }
         } else if (mess_buf[0] == '2') {
           // TODO: handle the case of closing message
-
+	  
         } else if (mess_buf[0] == '1') {
+	  if (status == 1) {
+	    printf("Received message: %s\n", mess_buf + sizeof(char));
+	    if (bytes > 0) {
+	      nwritten = fwrite(mess_buf + sizeof(char), 1, bytes - sizeof(char), fw);
+	      if (nwritten != (bytes - sizeof(char))) {
+		perror("fwrite");
+		exit(0);
+	      }
+	    }
 
-          printf("Received message: %s\n", mess_buf + sizeof(char));
-          if (bytes > 0) {
-            nwritten = fwrite(mess_buf + sizeof(char), 1, bytes - sizeof(char), fw);
-            if (nwritten != (bytes - sizeof(char))) {
-              perror("fwrite");
-              exit(0);
-            }
-          }
+	    // Why this line??
+	    mess_buf[bytes] = 0;
+	    if (bytes < BUF_SIZE) {
+	      break;
+	    }
 
-          // Why this line??
-          mess_buf[bytes] = 0;
-          if (bytes < BUF_SIZE) {
-            break;
-          }
+	  }
+        } else if (mess_buf[0] == '3') {
+	  //receive connection ack from sender, start file transfer
+	  printf("received connection ack from sender, start file transfer...\n");
+	  status = 1; 
         } else {
           perror("Package error.\n");
           exit(0);
         }
       }
+    }
+
+    printf("status: %d\n", status);
+    //send
+    if (status == 0) { //send connection ack
+      printf("send out connection ack.\n");
+      ack_buf[0] = '1';
+      sendto(sr, ack_buf, strlen(ack_buf), 0,
+	     (struct sockaddr *)&from_addr, sizeof(from_addr));
     }
   }
   fclose(fw);
