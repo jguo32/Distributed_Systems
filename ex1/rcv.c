@@ -8,16 +8,18 @@
 #include "sendto_dbg.h"
 
 #define NAME_LENGTH 80
+#define ACK_BUF_SIZE 80
 
 int main(int argc, char **argv) {
   /* Variable for writing files */
-  char *file_name;
+  char *file_name; //not used 
   FILE *fw;
   char buf[BUF_SIZE];
   int nwritten;
   int bytes;
   int num;
   char mess_buf[MAX_MESS_LEN];
+  char ack_buf[ACK_BUF_SIZE];
 
   /* Variables for UDP file transfer */
   struct sockaddr_in name;
@@ -68,22 +70,19 @@ int main(int argc, char **argv) {
   }
 
   /* Initialize the socket for sending messages */
-  /*
-  ss = socket(AF_INET, SOCK_DGRAM, 0);
+  /*ss = socket(AF_INET, SOCK_DGRAM, 0);
   if (ss < 0) {
     perror("ncp: socket");
     exit(1);
   }
 
-  printf("here\n.");
   memcpy(&h_ent, p_h_ent, sizeof(h_ent));
   memcpy(&host_num, h_ent.h_addr_list[0], sizeof(host_num));
 
   send_addr.sin_family = AF_INET;
   send_addr.sin_addr.s_addr = host_num;
-  send_addr.sin_port = htons(PORT);
-  */
-
+  send_addr.sin_port = htons(PORT);*/
+  
   FD_ZERO(&mask);
   FD_ZERO(&dummy_mask);
   FD_SET(sr, &mask);
@@ -102,6 +101,10 @@ int main(int argc, char **argv) {
 
         if (mess_buf[0] == '0') {
           from_ip = from_addr.sin_addr.s_addr;
+
+	  ack_buf[0] = '1';
+	  sendto(sr, ack_buf, strlen(ack_buf), 0,
+	  	 (struct sockaddr *)&from_addr, sizeof(from_addr));
 
           /* Open or create the destination file for writing */
           if ((fw = fopen(mess_buf + sizeof(char), "w")) == NULL) {

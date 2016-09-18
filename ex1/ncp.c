@@ -13,8 +13,12 @@ int main(int argc, char **argv) {
   FILE *fr;
   char buf[BUF_SIZE];
   char conn_buf[CONN_BUF_SIZE];
+  char mess_buf[MAX_MESS_LEN]; //message buffer from receiver
   int nread;
-
+  int bytes; //the length of content receives from rcv
+  int num;   //check if the there is msg coming
+  int status; //sender status (0:init connection, 1:transfer, 2:close conection)
+  
   /* Variables for UDP transfer */
   struct sockaddr_in name;
   struct sockaddr_in send_addr;
@@ -29,6 +33,9 @@ int main(int argc, char **argv) {
   int from_ip;
   int ss, sr;
 
+  fd_set mask;
+  fd_set dummy_mask, temp_mask;
+  
   struct timeval timeout;
 
   /* Other parameters */
@@ -95,13 +102,15 @@ int main(int argc, char **argv) {
   send_addr.sin_family = AF_INET;
   send_addr.sin_addr.s_addr = host_num;
   send_addr.sin_port = htons(PORT);
+
+  FD_ZERO(&mask);
+  FD_ZERO(&dummy_mask);
+  FD_SET(sr, &mask);
   
   /* Send the hello package to rcv */
   conn_buf[0] = '0'; // Header for hello packet
   memcpy(conn_buf + sizeof(char), dest_file_name, strlen(dest_file_name) + 1);
-  sendto(ss, conn_buf, strlen(conn_buf), 0,
-		 (struct sockaddr *)&send_addr, sizeof(send_addr)); 
-
+ 
   /* Open the source file for reading */
   if ((fr = fopen(file_name, "r")) == NULL) {
     perror("fopen");
@@ -109,29 +118,55 @@ int main(int argc, char **argv) {
   }
   printf("Opened %s for reading...\n", file_name);
 
+  status = 0;
   while (1) {
-    
-    /* Set the header of the package */
-    buf[0] = '1';
 
-    /* Read in a chunk of the file */
-    nread = fread(buf + sizeof(char), 1, BUF_SIZE, fr);
+    if (status == 0) { // init connection
+      sendto(ss, conn_buf, strlen(conn_buf), 0,
+	     (struct sockaddr *)&send_addr, sizeof(send_addr));
+      
+      temp_mask = mask;
+      timeout.tv_sec = 5; // 5 sec timeout to resend
+      timeout.tv_usec = 0;
 
-    /* If there is something to write, write it */
-    if (nread > 0) {
-      sendto(ss, buf, nread + sizeof(char), 0, (struct sockaddr *)&send_addr,
-             sizeof(send_addr));
-    }
-
-    /* fread returns a short count either at EOF or when an error occurred */
-    if (nread < BUF_SIZE) {
-      if (feof(fr)) {
-        printf("Finished sending files.\n");
-        break;
-      } else {
-        printf("An error occured...\n");
-        exit(0);
+      num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
+      
+      if (num > 0) {
+	if (FD_ISSET(sr, &temp_mask)) {
+	  from_len = sizeof(from_addr);
+	  bytes = recvfrom(sr, mess_buf, sizeof(mess_buf), 0,
+			   (struct sockaddr *)&from_addr, &from_len);
+	  if (mess_buf[0] == '1') {
+	    printf("get receiver ack, start to send ack to receiver");
+	  }
+	}
       }
+      printf("haven't receive ack");
+     } else if (status == 1) {
+    
+      /* Set the header of the package */
+      buf[0] = '1';
+
+      /* Read in a chunk of the file */
+      nread = fread(buf + sizeof(char), 1, BUF_SIZE, fr);
+
+      /* If there is something to write, write it */
+      if (nread > 0) {
+	sendto(ss, buf, nread + sizeof(char), 0, (struct sockaddr *)&send_addr,
+	       sizeof(send_addr));
+      }
+
+      /* fread returns a short count either at EOF or when an error occurred */
+      if (nread < BUF_SIZE) {
+	if (feof(fr)) {
+	  printf("Finished sending files.\n");
+	  break;
+	} else {
+	  printf("An error occured...\n");
+	  exit(0);
+	}
+      }
+    } else if (status == 2) {
     }
   }
 
