@@ -4,7 +4,13 @@
 #include "sendto_dbg.h"
 
 #define NAME_LENGTH 80
-#define CONN_BUF_SIZE 81
+#define PACKET_DATA_SIZE 80
+#define WIN_SIZE 5
+
+#define READ_BUF_SIZE PACKET_DATA_SIZE*WIN_SIZE*3
+#define CONN_BUF_SIZE NAME_LENGTH+1
+#define SEND_BUF_SIZE PACKET_DATA_SIZE+1
+#define ACK_BUF_SIZE WIN_SIZE*3
 
 int main(int argc, char **argv) {
   /* Variables for file read */
@@ -12,12 +18,20 @@ int main(int argc, char **argv) {
   char *dest_file_name;
   FILE *fr;
   char buf[BUF_SIZE];
-  char conn_buf[CONN_BUF_SIZE];
-  char mess_buf[MAX_MESS_LEN]; //message buffer from receiver
-  int nread;
-  int bytes; //the length of content receives from rcv
-  int num;   //check if the there is msg coming
-  int status; //sender status (0:init connection, 1:file transfer, 2:close conection)
+  char conn_buf[CONN_BUF_SIZE]; //connection buffer to receiver
+  char mess_buf[MAX_MESS_LEN];  //message buffer from receiver
+  char send_buf[WIN_SIZE][SEND_BUF_SIZE]; //send data buffer to receiver
+  char read_buf[READ_BUF_SIZE]; //read data buffer from file
+  char ack_buf[WIN_SIZE*3];  //check if receive ack
+
+  int readLen; //the length that the sender will read from file
+  int nread;   //the actual length of data read from file
+  int bytes;   //the length of content receives from rcv
+  int num;     //check if the there is msg coming
+  int status;  //sender status (0:init connection, 1:file transfer, 2:close conection)
+  int readPos; //the position that sender will read from file
+  int sendPos; //the position that sender will start to send
+  int packageNo; //send packageNo
   
   /* Variables for UDP transfer */
   struct sockaddr_in name;
@@ -118,37 +132,64 @@ int main(int argc, char **argv) {
   }
   printf("Opened %s for reading...\n", file_name);
 
+  /* Init status */
   status = 0;
+
+  /* Init read Length that sender will read from receiver */
+  readLen = READ_BUF_SIZE;
+
+  /* Init file read and send package position */
+  readPos = 0;
+  sendPos = 0;
+
+  /* Init package No */
+  packageNo = 0;
+  
   while (1) {
 
     if (status == 0) { // init connection
       sendto(ss, conn_buf, strlen(conn_buf), 0,
 	     (struct sockaddr *)&send_addr, sizeof(send_addr));
-     } else if (status == 1) {
-    
-      /* Set the header of the package */
-      buf[0] = '1';
+    } else if (status == 1) {
 
+      // step 1. read data from file
       /* Read in a chunk of the file */
-      nread = fread(buf + sizeof(char), 1, BUF_SIZE, fr);
-
-      /* If there is something to write, write it */
-      if (nread > 0) {
-	sendto(ss, buf, nread + sizeof(char), 0, (struct sockaddr *)&send_addr,
-	       sizeof(send_addr));
-      }
+      nread = fread(read_buf + readPos*PACKET_DATA_SIZE, 1, readLen, fr);
 
       /* fread returns a short count either at EOF or when an error occurred */
-      if (nread < BUF_SIZE) {
+      if (nread < readLen) {
 	if (feof(fr)) {
-	  printf("Finished sending files.\n");
-	  break;
+	  printf("Finished reading data from files.\n");
+	  /* compute the package the last package No */
+	  // TO-DO get end position (endPos = ...)
+	  //break;
 	} else {
 	  printf("An error occured...\n");
 	  exit(0);
 	}
       }
+            
+      // step 2. pack the packages and send
+      // TO-DO Math.min(WIN_SIE, (endPos<sendPos ? ACK_BUF_SIZE:0)+endPos-sendPos);
+      for (int n = 0; n<WIN_SIZE; n++) {
+       	int p = (sendPos+n >= ACK_BUF_SIZE ? sendPos+n-ACK_BUF_SIZE : sendPos);
+	/*check if the package was already received*/
+	if (ack_buf[p] == '1') continue;
+
+	/* Set the header of the package */
+	/* Set the msg type */
+	send_buf[n][0] = '1';
+	/* Set the package No */
+	
+	int readPos = p*PACKET_DATA_SIZE;
+	memcpy(send_buf[n][1], read_buf+readPos, PACKET_DATA_SIZE);
+
+	sendto(ss, send_buf, nread + sizeof(char), 0, (struct sockaddr *)&send_addr,
+	       sizeof(send_addr));
+      }
+   
     } else if (status == 2) {
+
     } else if (status == 3) {
       conn_buf[0] = '3';
       sendto(ss, conn_buf, strlen(conn_buf), 0,
@@ -181,11 +222,13 @@ int main(int argc, char **argv) {
 
 	    continue;
 	  }
+	} else if (mess_buf[0] == '2') { //ack comes
+	  /* extract package ack no */
+	  
 	}
       }
     }
-    printf("time out ... haven't receive any ack.\n");
-    
+    printf("time out ... haven't receive any ack.\n");    
   }
 
   /* Cleaup files */
