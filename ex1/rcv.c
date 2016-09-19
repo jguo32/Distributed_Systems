@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
 
 	    struct STOR_MSG recv_pack;
 	    memcpy(&recv_pack, mess_buf, sizeof(recv_pack));
-	    printf("receive package: %d\n", recv_pack.packageNo, recv_pack.msg.type);
+	    printf("receive package (no: %d)\n", recv_pack.packageNo);
 
 	    struct RTOS_MSG send_pack;
 	    send_pack.msg.type = '2';

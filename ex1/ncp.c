@@ -12,9 +12,9 @@ int main(int argc, char **argv) {
   char conn_buf[CONN_BUF_SIZE]; //connection buffer to receiver
   char mess_buf[MAX_MESS_LEN];  //message buffer from receiver
   struct STOR_MSG send_package[WIN_SIZE]; //packages struct;
-  char send_buf[sizeof(send_package[0])]; //send data buffer to receiver
+  //char send_buf[sizeof(send_package[0])]; //send data buffer to receiver
   char read_buf[READ_BUF_SIZE]; //read data buffer from file
-  char ack_buf[ACK_BUF_SIZE];  //check if receive ack
+  int ack_buf[WIN_SIZE];  //check if receive ack
 
   int readLen; //the length that the sender will read from file
   int nread;   //the actual length of data read from file
@@ -22,9 +22,9 @@ int main(int argc, char **argv) {
   int num;     //check if the there is msg coming
   int status;  //sender status (0:init connection, 1:file transfer, 2:close conection)
   int readPos; //the position that sender will read from file
-  int sendPos; //the position that sender will start to send
-  int packageNo; //send packageNo
-
+  int sendPackNo; //the package NO.  that sender will start to send
+  int finishedRead; //finished reading file
+  
   /* test
   send_package[0].type = '9';
   send_package[0].packageNo = 24;
@@ -151,15 +151,18 @@ int main(int argc, char **argv) {
 
   /* Init file read and send package position */
   readPos = 0;
-  sendPos = 0;
+  sendPackNo = 0;
 
-  /* Init package No */
-  packageNo = 0;
+  /* Init if file is completely read */
+  finishedRead = 0;
+
+  /* Init ack buf, the inital val will be : [0,1,2,3,...,WIN_SIZE-1] */
+  for (int i=0; i<WIN_SIZE; i++)
+    ack_buf[i] = i;
   
   while (1) {
 
     // send
-
     printf("~~~~~~~~~~ send ~~~~~~~~~~~~");
     printf("status: %d\n", status);
     
@@ -170,12 +173,16 @@ int main(int argc, char **argv) {
 
       // step 1. read data from file
       /* Read in a chunk of the file */
-      nread = fread(read_buf + readPos*PACKET_DATA_SIZE, 1, readLen, fr);
-      readLen = 0;
+      if (!finishedRead) {
+	nread = fread(read_buf + readPos*PACKET_DATA_SIZE, 1, readLen, fr);
+	readLen = 0;
+      }
+      
       /* fread returns a short count either at EOF or when an error occurred */
       if (nread < readLen) {
 	if (feof(fr)) {
 	  printf("Finished reading data from files.\n");
+	  finishedRead = 1;
 	  /* compute the package the last package No */
 	  // TO-DO get end position (endPos = ...)
 	  //break;
@@ -188,24 +195,25 @@ int main(int argc, char **argv) {
       // step 2. pack the packages and send
       // TO-DO Math.min(WIN_SIE, (endPos<sendPos ? ACK_BUF_SIZE:0)+endPos-sendPos);
       for (int n = 0; n<WIN_SIZE; n++) {
-       	int p = (sendPos+n >= ACK_BUF_SIZE ? sendPos+n-ACK_BUF_SIZE : sendPos);
+       	int p = (sendPackNo%WIN_SIZE+n >= WIN_SIZE ? sendPackNo%WIN_SIZE+n-WIN_SIZE : sendPackNo%WIN_SIZE+n); //xixi kande feijin ba
 
-	// printf("n: %d\n", n);
+	printf("p: %d\n", p);
 
 	/*check if the package was already received*/
-	if (ack_buf[p] == '1') continue;
+	if (ack_buf[p]-sendPackNo > WIN_SIZE-1) continue;
 
 	/* Set the header of the package */
 	/* Set the msg type */
 	send_package[n].msg.type = '1';
 
 	/* Set the package No */
-	send_package[n].packageNo = packageNo;
+	send_package[n].packageNo = ack_buf[p];
 
 	/* Copy data */
       	int readPos = p*PACKET_DATA_SIZE;
+	char send_buf[sizeof(send_package[n])];
 	memcpy(send_package[n].data, read_buf+readPos, PACKET_DATA_SIZE);
-	memcpy(send_buf, &send_package[n], sizeof(send_buf));
+	memcpy(send_buf, &send_package[n], sizeof(send_package[n]));
 
 	/*
 	printf("p: %d \n", send_package[n].packageNo);
@@ -221,8 +229,8 @@ int main(int argc, char **argv) {
 
     }
 
-    //receive 
-
+    // receive 
+    // TO-DO: use while loop, until timeout 
     printf("~~~~~~~~~~ recv ~~~~~~~~~~~~");
     printf("status: %d\n", status);  
 
@@ -256,16 +264,27 @@ int main(int argc, char **argv) {
 	  }
 	} else if (mess_buf[0] == '2') { //ack comes
 	  /* extract package ack no */
-	  printf("receive ack from receiver. \n");
-
+	  
 	  struct RTOS_MSG recv_pack;
 	  memcpy(&recv_pack, mess_buf, sizeof(recv_pack));
-	  printf("ack number: %d\n", recv_pack.ackNo);
-	  packageNo ++;
-	  continue;
+	  printf("receive ack from receiver. (ack no: %d)\n", recv_pack.ackNo);
+
+	  sendPackNo += (sendPackNo == recv_pack.ackNo ? 1:0);
+	  int p = recv_pack.ackNo%WIN_SIZE;
+	  ack_buf[p] = recv_pack.ackNo+WIN_SIZE;
+	  printf("ackbuf: %d\n", ack_buf[0]);
+	  printf("ackbuf: %d\n", ack_buf[1]);
+	  printf("ackbuf: %d\n", ack_buf[2]);
+	  printf("ackbuf: %d\n", ack_buf[3]);
+	  printf("ackbuf: %d\n", ack_buf[4]);
+	  printf("sendPackNo: %d\n", sendPackNo);
+	  //continue;
 	}
       }
     }
+
+    if (sendPackNo == 20) break;
+    
     printf("time out ... haven't receive any ack.\n");    
   }
 
