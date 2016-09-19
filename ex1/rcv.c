@@ -146,8 +146,8 @@ int main(int argc, char **argv) {
 	      
 	    char send_buf[sizeof(send_pack)];
 	    memcpy(send_buf, &send_pack, sizeof(send_pack));
-	    
-	    sendto(sr, send_buf, strlen(send_buf), 0,
+
+	    sendto(sr, send_buf, sizeof(send_buf), 0,
 	     (struct sockaddr *)&from_addr, sizeof(from_addr));
 	    /*
 	    if (bytes > 0) {
