@@ -7,8 +7,7 @@
 #include "net_include.h"
 #include "sendto_dbg.h"
 
-#define NAME_LENGTH 80
-#define ACK_BUF_SIZE 80
+#define ACK_MSG_SIZE 32
 
 int main(int argc, char **argv) {
   /* Variable for writing files */
@@ -20,7 +19,7 @@ int main(int argc, char **argv) {
   int num;
   int status; //(-1:free; 0: connection,send ack to sender; 1:file transfer, send packet ack; 2: )
   char mess_buf[MAX_MESS_LEN];
-  char ack_buf[ACK_BUF_SIZE];
+  char ack_msg[ACK_MSG_SIZE];
 
   /* Variables for UDP file transfer */
   struct sockaddr_in name;
@@ -93,18 +92,26 @@ int main(int argc, char **argv) {
   while (1) {
 
     //receive
+
+    printf("~~~~~~~~~~ recv ~~~~~~~~~~~\n");
+    printf("status: %d\n", status);
+    
     temp_mask = mask;
     timeout.tv_sec = 10;
     timeout.tv_usec = 0;
     num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
-    printf("status: %d\n", status);
+
     if (num > 0) {
       if (FD_ISSET(sr, &temp_mask)) {
         from_len = sizeof(from_addr);
         bytes = recvfrom(sr, mess_buf, sizeof(mess_buf), 0,
                          (struct sockaddr *)&from_addr, &from_len);
-	printf("msg type: %c\n", mess_buf[0]);
-	//check msg type
+
+	/* check msg type */
+	struct MSG msg;
+	memcpy(&msg, mess_buf, sizeof(msg));
+	printf("message type: %c\n", msg.type);
+	
         if (mess_buf[0] == '0') {
 	  if (status == -1) {
 	    from_ip = from_addr.sin_addr.s_addr;
@@ -128,7 +135,21 @@ int main(int argc, char **argv) {
 	  
         } else if (mess_buf[0] == '1') {
 	  if (status == 1) {
-	    printf("Received message: %s\n", mess_buf + sizeof(char));
+
+	    struct STOR_MSG recv_pack;
+	    memcpy(&recv_pack, mess_buf, sizeof(recv_pack));
+	    printf("receive package: %d\n", recv_pack.packageNo, recv_pack.msg.type);
+
+	    struct RTOS_MSG send_pack;
+	    send_pack.msg.type = '2';
+	    send_pack.ackNo = recv_pack.packageNo;
+	      
+	    char send_buf[sizeof(send_pack)];
+	    memcpy(send_buf, &send_pack, sizeof(send_pack));
+	    
+	    sendto(sr, send_buf, strlen(send_buf), 0,
+	     (struct sockaddr *)&from_addr, sizeof(from_addr));
+	    /*
 	    if (bytes > 0) {
 	      nwritten = fwrite(mess_buf + sizeof(char), 1, bytes - sizeof(char), fw);
 	      if (nwritten != (bytes - sizeof(char))) {
@@ -141,7 +162,7 @@ int main(int argc, char **argv) {
 	    mess_buf[bytes] = 0;
 	    if (bytes < BUF_SIZE) {
 	      break;
-	    }
+	    }*/
 
 	  }
         } else if (mess_buf[0] == '3') {
@@ -155,12 +176,13 @@ int main(int argc, char **argv) {
       }
     }
 
+    printf("~~~~~~~~~~ send ~~~~~~~~~~~\n");
     printf("status: %d\n", status);
     //send
     if (status == 0) { //send connection ack
       printf("send out connection ack.\n");
-      ack_buf[0] = '1';
-      sendto(sr, ack_buf, strlen(ack_buf), 0,
+      ack_msg[0] = '1';
+      sendto(sr, ack_msg, strlen(ack_msg), 0,
 	     (struct sockaddr *)&from_addr, sizeof(from_addr));
     }
   }

@@ -3,26 +3,18 @@
 #include "net_include.h"
 #include "sendto_dbg.h"
 
-#define NAME_LENGTH 80
-#define PACKET_DATA_SIZE 80
-#define WIN_SIZE 5
-
-#define READ_BUF_SIZE PACKET_DATA_SIZE*WIN_SIZE*3
-#define CONN_BUF_SIZE NAME_LENGTH+1
-#define SEND_BUF_SIZE PACKET_DATA_SIZE+1
-#define ACK_BUF_SIZE WIN_SIZE*3
 
 int main(int argc, char **argv) {
   /* Variables for file read */
   char *file_name;
   char *dest_file_name;
   FILE *fr;
-  char buf[BUF_SIZE];
   char conn_buf[CONN_BUF_SIZE]; //connection buffer to receiver
   char mess_buf[MAX_MESS_LEN];  //message buffer from receiver
-  char send_buf[WIN_SIZE][SEND_BUF_SIZE]; //send data buffer to receiver
+  struct STOR_MSG send_package[WIN_SIZE]; //packages struct;
+  char send_buf[sizeof(send_package[0])]; //send data buffer to receiver
   char read_buf[READ_BUF_SIZE]; //read data buffer from file
-  char ack_buf[WIN_SIZE*3];  //check if receive ack
+  char ack_buf[ACK_BUF_SIZE];  //check if receive ack
 
   int readLen; //the length that the sender will read from file
   int nread;   //the actual length of data read from file
@@ -32,6 +24,25 @@ int main(int argc, char **argv) {
   int readPos; //the position that sender will read from file
   int sendPos; //the position that sender will start to send
   int packageNo; //send packageNo
+
+  /* test
+  send_package[0].type = '9';
+  send_package[0].packageNo = 24;
+  memcpy(send_nebuf, &send_package[0], sizeof(send_buf));
+  struct STOR_MSG test_package; 
+  memcpy(&test_package, send_buf, sizeof(send_buf)); 
+	   
+  printf("0: %d \n",send_buf[0]);
+  printf("1: %d \n",send_buf[1]);
+  printf("2: %d \n",send_buf[2]);
+  printf("3: %d \n",send_buf[3]);
+  printf("4: %c \n",send_buf[4]);
+  printf("5: %c \n",send_buf[5]);
+  printf("%d \n", send_package[0].packageNo);
+
+  printf("%d\n", test_package.packageNo);
+  printf("%c\n", test_package.type);
+  return 0; */
   
   /* Variables for UDP transfer */
   struct sockaddr_in name;
@@ -147,6 +158,11 @@ int main(int argc, char **argv) {
   
   while (1) {
 
+    // send
+
+    printf("~~~~~~~~~~ send ~~~~~~~~~~~~");
+    printf("status: %d\n", status);
+    
     if (status == 0) { // init connection
       sendto(ss, conn_buf, strlen(conn_buf), 0,
 	     (struct sockaddr *)&send_addr, sizeof(send_addr));
@@ -155,7 +171,7 @@ int main(int argc, char **argv) {
       // step 1. read data from file
       /* Read in a chunk of the file */
       nread = fread(read_buf + readPos*PACKET_DATA_SIZE, 1, readLen, fr);
-
+      readLen = 0;
       /* fread returns a short count either at EOF or when an error occurred */
       if (nread < readLen) {
 	if (feof(fr)) {
@@ -173,44 +189,60 @@ int main(int argc, char **argv) {
       // TO-DO Math.min(WIN_SIE, (endPos<sendPos ? ACK_BUF_SIZE:0)+endPos-sendPos);
       for (int n = 0; n<WIN_SIZE; n++) {
        	int p = (sendPos+n >= ACK_BUF_SIZE ? sendPos+n-ACK_BUF_SIZE : sendPos);
+
+	// printf("n: %d\n", n);
+
 	/*check if the package was already received*/
 	if (ack_buf[p] == '1') continue;
 
 	/* Set the header of the package */
 	/* Set the msg type */
-	send_buf[n][0] = '1';
-	/* Set the package No */
-	
-	int readPos = p*PACKET_DATA_SIZE;
-	memcpy(send_buf[n][1], read_buf+readPos, PACKET_DATA_SIZE);
+	send_package[n].msg.type = '1';
 
-	sendto(ss, send_buf, nread + sizeof(char), 0, (struct sockaddr *)&send_addr,
-	       sizeof(send_addr));
+	/* Set the package No */
+	send_package[n].packageNo = packageNo;
+
+	/* Copy data */
+      	int readPos = p*PACKET_DATA_SIZE;
+	memcpy(send_package[n].data, read_buf+readPos, PACKET_DATA_SIZE);
+	memcpy(send_buf, &send_package[n], sizeof(send_buf));
+
+	/*
+	printf("p: %d \n", send_package[n].packageNo);
+   	printf("p: %c \n", send_package[n].type);
+	printf("array: %d \n", send_buf[0]);
+	printf("array: %c \n", send_buf[4]); */
+	
+	sendto(ss, send_buf, sizeof(send_buf), 0, (struct sockaddr *)&send_addr,
+	      sizeof(send_addr));
       }
    
     } else if (status == 2) {
 
-    } else if (status == 3) {
-      conn_buf[0] = '3';
-      sendto(ss, conn_buf, strlen(conn_buf), 0,
-	     (struct sockaddr *)&send_addr, sizeof(send_addr));
-      status = 2;
-      printf("start to transfer file. \n");
     }
 
     //receive 
+
+    printf("~~~~~~~~~~ recv ~~~~~~~~~~~~");
+    printf("status: %d\n", status);  
+
     temp_mask = mask;
     timeout.tv_sec = 5; // 5 sec timeout to resend
     timeout.tv_usec = 0;
 
     num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
-    printf("status: %d\n", status);  
+    
     if (num > 0) {
       if (FD_ISSET(ss, &temp_mask)) {
 	printf("msg type: %c\n", mess_buf[0]);
 	from_len = sizeof(from_addr);
 	bytes = recvfrom(ss, mess_buf, sizeof(mess_buf), 0,
 			 (struct sockaddr *)&from_addr, &from_len);
+
+	struct MSG msg;
+	memcpy(&msg, mess_buf, sizeof(msg));
+	printf("message type: %c\n", msg.type);
+	
 	if (mess_buf[0] == '1') {
 	  if (status == 0 || status == 2) {
 	    //sender would send another ack and then change to file transfer status
@@ -218,13 +250,19 @@ int main(int argc, char **argv) {
 	    conn_buf[0] = '3';
 	    sendto(ss, conn_buf, strlen(conn_buf), 0,
 		   (struct sockaddr *)&send_addr, sizeof(send_addr));
-	    status = 2;
+	    status = 1;
 
 	    continue;
 	  }
 	} else if (mess_buf[0] == '2') { //ack comes
 	  /* extract package ack no */
-	  
+	  printf("receive ack from receiver. \n");
+
+	  struct RTOS_MSG recv_pack;
+	  memcpy(&recv_pack, mess_buf, sizeof(recv_pack));
+	  printf("ack number: %d\n", recv_pack.ackNo);
+	  packageNo ++;
+	  continue;
 	}
       }
     }
