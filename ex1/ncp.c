@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
 	  int m = mapping_index[i];
 	  if (m  == -1) continue;
 	  memcpy(data_buf+i*PACKET_DATA_SIZE,
-		 read_buf+m*PACKET_DATA_SIZE, sizeof(PACKET_DATA_SIZE));
+		 read_buf+m*PACKET_DATA_SIZE, PACKET_DATA_SIZE);
 	}
 
 	readLen = 0;
