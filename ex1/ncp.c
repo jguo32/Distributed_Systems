@@ -247,12 +247,6 @@ int main(int argc, char **argv) {
 	memcpy(send_package[n].data, data_buf+readPos, PACKET_DATA_SIZE);
 	memcpy(send_buf, &send_package[n], sizeof(send_package[n]));
 
-	for (int j=0; j<20; j++) {
-	  printf("%d:%c ", j, send_package[n].data[j]);
-	  printf("%d:%c ", j, read_buf[j]);
-	}
-	printf("\n");
-		
 	printf("pack No: %d \n", send_package[n].packageNo);
 	
 	sendto(ss, send_buf, sizeof(send_buf), 0, (struct sockaddr *)&send_addr,
@@ -260,10 +254,13 @@ int main(int argc, char **argv) {
       }
    
     } else if (status == 2) {
-
-    } else if (status == 3) {
       /*notify receiver that the data were all transfered, prepare for close connection*/
-      
+      struct CLOSE_CON_MSG close_msg;
+      close_msg.msg.type = '2';
+      char close_buf[sizeof(close_msg)];
+      memcpy(close_buf, &close_msg, sizeof(close_msg));
+      sendto(ss, close_buf, sizeof(close_buf), 0, (struct sockaddr *)&send_addr,
+	     sizeof(send_addr));
     }
     
     // receive 
@@ -362,7 +359,7 @@ int main(int argc, char **argv) {
 
       if (sendPackNo == lastPackNo+1) {
 	printf("data was already completely transfered! \n");
-	status = 3; //prepare to close connection
+	status = 2; //prepare to close connection
       }
       
       //if (sendPackNo == 10) break; // for test

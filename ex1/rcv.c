@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
 	    }
 
 	    printf("Received transfer request from (%d.%d.%d.%d), destination "
-		   "file: %s\n",
+		   "file name: %s\n",
 		   (htonl(from_ip) & 0xff000000) >> 24,
 		   (htonl(from_ip) & 0x00ff0000) >> 16,
 		   (htonl(from_ip) & 0x0000ff00) >> 8,
@@ -132,6 +132,12 @@ int main(int argc, char **argv) {
 	  }
         } else if (mess_buf[0] == '2') {
           // TODO: handle the case of closing message
+	  if (status == 1) {
+	    printf("receive file completely transfered msg, prepare to close file writter. \n");
+	    fclose(fw);
+	    status = -1;
+	  }
+
 	  
         } else if (mess_buf[0] == '1') {
 	  if (status == 1) {
@@ -152,8 +158,9 @@ int main(int argc, char **argv) {
 	     (struct sockaddr *)&from_addr, sizeof(from_addr));
 
 	    printf("size %d\n", sizeof(recv_pack.data));
-	    nwritten = fwrite(recv_pack.data, 1, sizeof(recv_pack.data), fw);
-	    break; // for test
+	    printf("len %d\n", strlen(recv_pack.data));
+	    nwritten = fwrite(recv_pack.data, 1, strlen(recv_pack.data), fw);
+	    //break; // for test
 	    /*
 	    if (bytes > 0) {
 	      nwritten = fwrite(mess_buf + sizeof(char), 1, bytes - sizeof(char), fw);
@@ -191,7 +198,7 @@ int main(int argc, char **argv) {
 	     (struct sockaddr *)&from_addr, sizeof(from_addr));
     }
   }
-  fclose(fw);
+  //  fclose(fw);
 
   return 0;
 }

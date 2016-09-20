@@ -42,3 +42,14 @@ struct RTOS_MSG {
   struct MSG msg;
   int ackNo;
 };
+
+/* Open Connection */
+struct OPEN_CONN_MSG {
+  struct MSG msg;
+  char filename[CONN_BUF_SIZE];
+};
+
+/* Close Connectin */
+struct CLOSE_CON_MSG {
+  struct MSG msg;
+};
