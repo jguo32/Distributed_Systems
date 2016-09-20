@@ -147,8 +147,13 @@ int main(int argc, char **argv) {
 	    char send_buf[sizeof(send_pack)];
 	    memcpy(send_buf, &send_pack, sizeof(send_pack));
 
+	    /*TO-DO, pack all the ack together and send out */
 	    sendto(sr, send_buf, sizeof(send_buf), 0,
 	     (struct sockaddr *)&from_addr, sizeof(from_addr));
+
+	    printf("size %d\n", sizeof(recv_pack.data));
+	    nwritten = fwrite(recv_pack.data, 1, sizeof(recv_pack.data), fw);
+	    break; // for test
 	    /*
 	    if (bytes > 0) {
 	      nwritten = fwrite(mess_buf + sizeof(char), 1, bytes - sizeof(char), fw);
