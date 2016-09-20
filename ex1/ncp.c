@@ -218,7 +218,7 @@ int main(int argc, char **argv) {
 	    conn_buf[0] = '3';
 	    sendto(ss, conn_buf, strlen(conn_buf), 0,
 		   (struct sockaddr *)&send_addr, sizeof(send_addr));
-	    status = 2;
+	    status = 1;
 
 	    continue;
 	  }
