@@ -15,21 +15,29 @@
 #define PORT	     10270
 
 #define MAX_MESS_LEN 1400
-#define BUF_SIZE 100
-
 #define NAME_LENGTH 80
-#define PACKET_DATA_SIZE 80
+
+#define FILE_NAME_LEN 20
+#define PACKET_DATA_SIZE 10
 #define WIN_SIZE 5
 
 #define READ_BUF_SIZE PACKET_DATA_SIZE*WIN_SIZE
-#define CONN_BUF_SIZE NAME_LENGTH+1
 #define ACK_BUF_SIZE WIN_SIZE
 
+#define RTOS_START_CONN   '1'
+#define RTOS_ACK_COMES    '2'
+#define RTOS_CLOSE_CONN   '3'
+
+#define STOR_START_CONN   '0'
+#define STOR_COMFIRM_CONN '1'
+#define STOR_PACKET_COMES '2'
+#define STOR_CLOSE_CONN   '3'
 
 struct MSG {
   char type;
 };
 
+/* ~~~~~~~~~~~~~~~~~ Data Transfer struct ~~~~~~~~~~~~~~~~~ */
 /* Data Transfer: Msg from Sender to Receiver */
 struct STOR_MSG {
   struct MSG msg;
@@ -43,13 +51,26 @@ struct RTOS_MSG {
   int ackNo;
 };
 
-/* Open Connection */
+/* ~~~~~~~~~~~~~~~~~ Connection struct ~~~~~~~~~~~~~~~~~ */
+/* Open Connection, Send to Receiver*/
 struct OPEN_CONN_MSG {
   struct MSG msg;
-  char filename[CONN_BUF_SIZE];
+  char filename[FILE_NAME_LEN];
 };
 
+/* Start Connection, Receiver to Sender */
+struct START_CONN_MSG {
+  struct MSG msg;
+};
+
+/* Confirm Connection from Sender */
+struct CONFIRM_CONN_MSG {
+  struct MSG msg;
+};
+
+
+/* ~~~~~~~~~~~~~~~~~ Close Connection struct ~~~~~~~~~~~~~~~~~ */
 /* Close Connectin */
-struct CLOSE_CON_MSG {
+struct CLOSE_CONN_MSG {
   struct MSG msg;
 };

@@ -10,7 +10,6 @@ int main(int argc, char **argv) {
   char *file_name;
   char *dest_file_name;
   FILE *fr;
-  char conn_buf[CONN_BUF_SIZE]; //connection buffer to receiver
   char mess_buf[MAX_MESS_LEN];  //message buffer from receiver
   struct STOR_MSG send_package[WIN_SIZE]; //packages struct;
   //char send_buf[sizeof(send_package[0])]; //send data buffer to receiver
@@ -146,11 +145,7 @@ int main(int argc, char **argv) {
   FD_ZERO(&mask);
   FD_ZERO(&dummy_mask);
   FD_SET(ss, &mask);
-  
-  /* Send the hello package to rcv */
-  conn_buf[0] = '0'; // Header for hello packet
-  memcpy(conn_buf + sizeof(char), dest_file_name, strlen(dest_file_name) + 1);
- 
+   
   /* Open the source file for reading */
   if ((fr = fopen(file_name, "r")) == NULL) {
     perror("fopen");
@@ -179,16 +174,30 @@ int main(int argc, char **argv) {
     // send
     printf("~~~~~~~~~~ send ~~~~~~~~~~~~\n");
     printf("status: %d\n", status);
-    
+
     if (status == 0) { // init connection
+      /* Send the hello package to rcv */					    
+      struct OPEN_CONN_MSG conn_msg;
+      conn_msg.msg.type = STOR_START_CONN; // Header for hello packet		  
+      memcpy(conn_msg.filename, dest_file_name, strlen(dest_file_name) + 1);
+
+      char conn_buf[sizeof(conn_msg)];
+      memcpy(conn_buf, &conn_msg, sizeof(conn_msg));
       sendto(ss, conn_buf, strlen(conn_buf), 0,
 	     (struct sockaddr *)&send_addr, sizeof(send_addr));
+      
     } else if (status == 1) {
 
       // step 1. read data from file
       /* Read in a chunk of the file */
 
+      printf("lastPackNo: %d\n", lastPackNo);
+      printf("readLen: %d\n", readLen);
+      
       if (lastPackNo == -1 && readLen > 0) {
+
+	memset(read_buf, 0, READ_BUF_SIZE);
+
 	nread = fread(read_buf, 1, readLen, fr);
 
 	printf("nread: %d\n", nread);
@@ -214,7 +223,8 @@ int main(int argc, char **argv) {
 	  memcpy(data_buf+i*PACKET_DATA_SIZE,
 		 read_buf+m*PACKET_DATA_SIZE, PACKET_DATA_SIZE);
 	}
-
+	printf("read_buf %s\n", read_buf);
+	printf("data_buf %s\n", data_buf);
 	readLen = 0;
       }
       
@@ -235,7 +245,7 @@ int main(int argc, char **argv) {
 
 	/* Set the header of the package */
 	/* Set the msg type */
-	send_package[n].msg.type = '1';
+	send_package[n].msg.type = STOR_PACKET_COMES;
 
 	/* Set the package No */
 	send_package[n].packageNo = ack_buf[p];
@@ -247,7 +257,7 @@ int main(int argc, char **argv) {
 	memcpy(send_package[n].data, data_buf+readPos, PACKET_DATA_SIZE);
 	memcpy(send_buf, &send_package[n], sizeof(send_package[n]));
 
-	printf("pack No: %d \n", send_package[n].packageNo);
+	printf("pack No.%d: %s\n", send_package[n].packageNo, send_package[n].data);
 	
 	sendto(ss, send_buf, sizeof(send_buf), 0, (struct sockaddr *)&send_addr,
 	       sizeof(send_addr));
@@ -255,8 +265,9 @@ int main(int argc, char **argv) {
    
     } else if (status == 2) {
       /*notify receiver that the data were all transfered, prepare for close connection*/
-      struct CLOSE_CON_MSG close_msg;
-      close_msg.msg.type = '2';
+      struct CLOSE_CONN_MSG close_msg;
+      close_msg.msg.type = STOR_CLOSE_CONN;
+
       char close_buf[sizeof(close_msg)];
       memcpy(close_buf, &close_msg, sizeof(close_msg));
       sendto(ss, close_buf, sizeof(close_buf), 0, (struct sockaddr *)&send_addr,
@@ -278,7 +289,7 @@ int main(int argc, char **argv) {
     
     while (1) {
 
-      printf("remaining time: %f\n", totalTime-elapsedTime);
+      // printf("remaining time: %f\n", totalTime-elapsedTime);
       
       temp_mask = mask;
       timeout.tv_sec = 0;
@@ -288,29 +299,35 @@ int main(int argc, char **argv) {
          
       if (num > 0) {
 	if (FD_ISSET(ss, &temp_mask)) {
-	  printf("msg type: %c\n", mess_buf[0]);
+
 	  from_len = sizeof(from_addr);
 
 	  // memset(mess_buf, 0, sizeof(mess_buf));
 	  bytes = recvfrom(ss, mess_buf, sizeof(mess_buf), 0,
 			   (struct sockaddr *)&from_addr, &from_len);
 
-	  struct MSG msg;
-	  memcpy(&msg, mess_buf, sizeof(msg));
-	  printf("message type: %c\n", msg.type);
+	  struct MSG recv_msg;
+	  memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
+	  printf("message type: %c\n", recv_msg.type);
 	
-	  if (mess_buf[0] == '1') {
+	  if (recv_msg.type == RTOS_START_CONN) {
 	    if (status == 0 || status == 2) {
 	      //sender would send another ack and then change to file transfer status
 	      printf("get receiver ack, start to send ack to receiver.\n");
-	      conn_buf[0] = '3';
-	      sendto(ss, conn_buf, strlen(conn_buf), 0,
+
+	      struct CONFIRM_CONN_MSG conn_msg;  
+	      conn_msg.msg.type = STOR_COMFIRM_CONN; // confirm
+
+	      char conn_buf[sizeof(conn_msg)];                         
+	      memcpy(conn_buf, &conn_msg, sizeof(conn_msg));           
+	      sendto(ss, conn_buf, strlen(conn_buf), 0,                
 		     (struct sockaddr *)&send_addr, sizeof(send_addr));
+		  		  
 	      status = 1;
 
 	      goto LOOP;
 	    }
-	  } else if (mess_buf[0] == '2') { //ack comes
+	  } else if (recv_msg.type == RTOS_ACK_COMES) { //ack comes
 	    /* extract package ack no */
 	  
 	    struct RTOS_MSG recv_pack;
@@ -320,13 +337,19 @@ int main(int argc, char **argv) {
 	    //sendPackNo += (sendPackNo == recv_pack.ackNo ? 1:0);
 	    int p = recv_pack.ackNo%WIN_SIZE;
 	    ack_buf[p] = recv_pack.ackNo+WIN_SIZE;
+
+	    /*
 	    printf("ackbuf0: %d\n", ack_buf[0]);
 	    printf("ackbuf1: %d\n", ack_buf[1]);
 	    printf("ackbuf2: %d\n", ack_buf[2]);
 	    printf("ackbuf3: %d\n", ack_buf[3]);
-	    printf("ackbuf4: %d\n", ack_buf[4]);
+	    printf("ackbuf4: %d\n", ack_buf[4]);*/
 	    
 	    //continue;
+	  } else if (recv_msg.type == RTOS_CLOSE_CONN) {
+	    status = 3;
+	  } else {
+	    
 	  }
 	}
       }
@@ -334,7 +357,7 @@ int main(int argc, char **argv) {
       clock_gettime(CLOCK_MONOTONIC, &endTime);
       elapsedTime = (endTime.tv_sec - startTime.tv_sec);
       elapsedTime += (endTime.tv_nsec - startTime.tv_nsec) / 1000000000.0;
-      printf("elapsed time: %f\n", elapsedTime);
+      //      printf("elapsed time: %f\n", elapsedTime);
 
       if (elapsedTime > totalTime) break;
     } /* end while (1) */
@@ -345,15 +368,16 @@ int main(int argc, char **argv) {
     
       int p = sendPackNo%WIN_SIZE;
       int i = 0; //mapping index starts from 0
-      int start = p;
+      int incre = 0;
       while (ack_buf[p] != sendPackNo) {
+	mapping_index[p] = i++;
 	sendPackNo ++;
 	p = sendPackNo%WIN_SIZE;
-	mapping_index[p] = i++;
+	incre ++;
       }
     
       /* Compute how much data should be read */
-      readLen = ((p<start ? WIN_SIZE:0) + p - start) * PACKET_DATA_SIZE;
+      readLen = incre * PACKET_DATA_SIZE;
         
       printf("sendPackNo: %d\n", sendPackNo);
 
@@ -364,6 +388,9 @@ int main(int argc, char **argv) {
       
       //if (sendPackNo == 10) break; // for test
       // printf("time out ... haven't receive any ack.\n");    
+    } else if (status == 3) {
+      printf("File transmission complete !\n");
+      break;
     }
   }
 
