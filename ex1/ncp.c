@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
     printf("~~~~~~~~~~ send ~~~~~~~~~~~~\n");
     printf("status: %d\n", status);
 
-    if (status == 0) { // init connection
+    if (status == SENDER_INIT_CONN) { // init connection
       /* Send the hello package to rcv */					    
       struct OPEN_CONN_MSG conn_msg;
       conn_msg.msg.type = STOR_START_CONN; // Header for hello packet		  
@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
       sendto(ss, conn_buf, strlen(conn_buf), 0,
 	     (struct sockaddr *)&send_addr, sizeof(send_addr));
       
-    } else if (status == 1) {
+    } else if (status == SENDER_DATA_TRANSFER) {
 
       // step 1. read data from file
       /* Read in a chunk of the file */
@@ -263,7 +263,7 @@ int main(int argc, char **argv) {
 	       sizeof(send_addr));
       }
    
-    } else if (status == 2) {
+    } else if (status == SENDER_CLOSE_CONN) {
       /*notify receiver that the data were all transfered, prepare for close connection*/
       struct CLOSE_CONN_MSG close_msg;
       close_msg.msg.type = STOR_CLOSE_CONN;
@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
 	  printf("message type: %c\n", recv_msg.type);
 	
 	  if (recv_msg.type == RTOS_START_CONN) {
-	    if (status == 0 || status == 2) {
+	    if (status == SENDER_INIT_CONN || status == SENDER_DATA_TRANSFER) {
 	      //sender would send another ack and then change to file transfer status
 	      printf("get receiver ack, start to send ack to receiver.\n");
 
@@ -323,7 +323,7 @@ int main(int argc, char **argv) {
 	      sendto(ss, conn_buf, strlen(conn_buf), 0,                
 		     (struct sockaddr *)&send_addr, sizeof(send_addr));
 		  		  
-	      status = 1;
+	      status = SENDER_DATA_TRANSFER;
 
 	      goto LOOP;
 	    }
@@ -347,7 +347,7 @@ int main(int argc, char **argv) {
 	    
 	    //continue;
 	  } else if (recv_msg.type == RTOS_CLOSE_CONN) {
-	    status = 3;
+	    status = SENDER_TERMINATE;
 	  } else {
 	    
 	  }
@@ -362,7 +362,7 @@ int main(int argc, char **argv) {
       if (elapsedTime > totalTime) break;
     } /* end while (1) */
 
-    if (status == 1) {
+    if (status == SENDER_DATA_TRANSFER) {
       /* Update sendPackNo, data refresh array */
       memset(mapping_index, -1, sizeof(mapping_index));
     
@@ -383,12 +383,12 @@ int main(int argc, char **argv) {
 
       if (sendPackNo == lastPackNo+1) {
 	printf("data was already completely transfered! \n");
-	status = 2; //prepare to close connection
+	status = SENDER_CLOSE_CONN; //prepare to close connection
       }
       
       //if (sendPackNo == 10) break; // for test
       // printf("time out ... haven't receive any ack.\n");    
-    } else if (status == 3) {
+    } else if (status == SENDER_TERMINATE) {
       printf("File transmission complete !\n");
       break;
     }
