@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
   FD_ZERO(&dummy_mask);
   FD_SET(sr, &mask);
   // FD_SET((long)0, &mask);
-  status = -1;
+  status = RECEIVER_FREE;
   
   while (1) {
 
@@ -111,9 +111,9 @@ int main(int argc, char **argv) {
 	printf("message type: %c\n", recv_msg.type);
 	
         if (recv_msg.type == STOR_START_CONN) {
-	  if (status == -1) {
+	  if (status == RECEIVER_FREE) {
 	    from_ip = from_addr.sin_addr.s_addr;
-	    status = 0; //change status, start connection
+	    status = RECEIVER_START_CONN; //change status, start connection
 	  
 	    /* Open or create the destination file for writing */
 	    if ((fw = fopen(mess_buf + sizeof(char), "w")) == NULL) {
@@ -130,20 +130,20 @@ int main(int argc, char **argv) {
 	  }
         } else if (recv_msg.type == STOR_CLOSE_CONN) {
           // TODO: handle the case of closing message
-	  if (status == 1) {
+	  if (status == RECEIVER_DATA_TRANSFER) {
 	    printf("Receive file completely transfered msg, prepare to close file writter. \n");
 	    fclose(fw);
-	    status = -1;
+	    status = RECEIVER_FREE;
 	  }
 	  struct CLOSE_CONN_MSG close_msg;
-	  close_msg.msg.type = '3';
+	  close_msg.msg.type = RTOS_CLOSE_CONN;
 	  char close_buf[sizeof(close_msg)];
 	  memcpy(close_buf, &close_msg, sizeof(close_msg));
 	  sendto(sr, close_buf, sizeof(close_buf), 0,          
 		 (struct sockaddr *)&from_addr, sizeof(from_addr));
 	  
         } else if (recv_msg.type == STOR_PACKET_COMES) {
-	  if (status == 1) {
+	  if (status == RECEIVER_DATA_TRANSFER) {
 
 	    struct STOR_MSG recv_pack;
 	    memcpy(&recv_pack, mess_buf, sizeof(recv_pack));
@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
 			      MIN(sizeof(recv_pack.data), strlen(recv_pack.data)), fw);
 
 	    struct RTOS_MSG send_pack;
-	    send_pack.msg.type = '2';
+	    send_pack.msg.type = RTOS_ACK_COMES;
 	    send_pack.ackNo = recv_pack.packageNo;
 	      
 	    char send_buf[sizeof(send_pack)];
@@ -187,7 +187,7 @@ int main(int argc, char **argv) {
         } else if (recv_msg.type == STOR_COMFIRM_CONN) {
 	  //receive connection ack from sender, start file transfer
 	  printf("Received connection ack from sender, start file transfer...\n");
-	  status = 1; 
+	  status = RECEIVER_DATA_TRANSFER; 
         } else {
           perror("Packet error.\n");
           exit(0);
@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
     printf("~~~~~~~~~~ send ~~~~~~~~~~~\n");
     printf("status: %d\n", status);
     //send
-    if (status == 0) { //send connection ack
+    if (status == RECEIVER_START_CONN) { //send connection ack
       printf("Send out connection ack.\n");
       struct START_CONN_MSG conn_msg;
       conn_msg.msg.type = RTOS_START_CONN;

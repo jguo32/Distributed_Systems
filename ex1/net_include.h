@@ -33,6 +33,16 @@
 #define STOR_PACKET_COMES '2'
 #define STOR_CLOSE_CONN   '3'
 
+#define SENDER_INIT_CONN       0
+#define SENDER_DATA_TRANSFER   1
+#define SENDER_CLOSE_CONN      2
+#define SENDER_TERMINATE       3
+
+#define RECEIVER_FREE         -1
+#define RECEIVER_START_CONN    0
+#define RECEIVER_DATA_TRANSFER 1
+
+
 struct MSG {
   char type;
 };
