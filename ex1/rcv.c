@@ -7,19 +7,17 @@
 #include "net_include.h"
 #include "sendto_dbg.h"
 
-#define ACK_MSG_SIZE 32
+#define MIN(x,y) (x > y ? y:x)
 
 int main(int argc, char **argv) {
   /* Variable for writing files */
   char *file_name; //not used 
   FILE *fw;
-  char buf[BUF_SIZE];
   int nwritten;
   int bytes;
   int num;
   int status; //(-1:free; 0: connection,send ack to sender; 1:file transfer, send packet ack; 2: )
   char mess_buf[MAX_MESS_LEN];
-  char ack_msg[ACK_MSG_SIZE];
 
   /* Variables for UDP file transfer */
   struct sockaddr_in name;
@@ -87,7 +85,7 @@ int main(int argc, char **argv) {
   FD_ZERO(&dummy_mask);
   FD_SET(sr, &mask);
   // FD_SET((long)0, &mask);
-  status = -1;
+  status = RECEIVER_FREE;
   
   while (1) {
 
@@ -108,14 +106,14 @@ int main(int argc, char **argv) {
                          (struct sockaddr *)&from_addr, &from_len);
 
 	/* check msg type */
-	struct MSG msg;
-	memcpy(&msg, mess_buf, sizeof(msg));
-	printf("message type: %c\n", msg.type);
+	struct MSG recv_msg;
+	memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
+	printf("message type: %c\n", recv_msg.type);
 	
-        if (mess_buf[0] == '0') {
-	  if (status == -1) {
+        if (recv_msg.type == STOR_START_CONN) {
+	  if (status == RECEIVER_FREE) {
 	    from_ip = from_addr.sin_addr.s_addr;
-	    status = 0; //change status, start connection
+	    status = RECEIVER_START_CONN; //change status, start connection
 	  
 	    /* Open or create the destination file for writing */
 	    if ((fw = fopen(mess_buf + sizeof(char), "w")) == NULL) {
@@ -124,24 +122,42 @@ int main(int argc, char **argv) {
 	    }
 
 	    printf("Received transfer request from (%d.%d.%d.%d), destination "
-		   "file: %s\n",
+		   "file name: %s\n",
 		   (htonl(from_ip) & 0xff000000) >> 24,
 		   (htonl(from_ip) & 0x00ff0000) >> 16,
 		   (htonl(from_ip) & 0x0000ff00) >> 8,
 		   (htonl(from_ip) & 0x000000ff), mess_buf + sizeof(char));
 	  }
-        } else if (mess_buf[0] == '2') {
+        } else if (recv_msg.type == STOR_CLOSE_CONN) {
           // TODO: handle the case of closing message
+	  if (status == RECEIVER_DATA_TRANSFER) {
+	    printf("Receive file completely transfered msg, prepare to close file writter. \n");
+	    fclose(fw);
+	    status = RECEIVER_FREE;
+	  }
+	  struct CLOSE_CONN_MSG close_msg;
+	  close_msg.msg.type = RTOS_CLOSE_CONN;
+	  char close_buf[sizeof(close_msg)];
+	  memcpy(close_buf, &close_msg, sizeof(close_msg));
+	  sendto(sr, close_buf, sizeof(close_buf), 0,          
+		 (struct sockaddr *)&from_addr, sizeof(from_addr));
 	  
-        } else if (mess_buf[0] == '1') {
-	  if (status == 1) {
+        } else if (recv_msg.type == STOR_PACKET_COMES) {
+	  if (status == RECEIVER_DATA_TRANSFER) {
 
 	    struct STOR_MSG recv_pack;
 	    memcpy(&recv_pack, mess_buf, sizeof(recv_pack));
-	    printf("receive package (no: %d)\n", recv_pack.packageNo);
+
+	    printf("Receive package (no: %d)\n", recv_pack.packageNo);
+	    printf("size %d\n", sizeof(recv_pack.data));		     
+	    printf("len %d\n", strlen(recv_pack.data));
+	    printf("data: %s\n", recv_pack.data);
+
+	    nwritten = fwrite(recv_pack.data, 1,
+			      MIN(sizeof(recv_pack.data), strlen(recv_pack.data)), fw);
 
 	    struct RTOS_MSG send_pack;
-	    send_pack.msg.type = '2';
+	    send_pack.msg.type = RTOS_ACK_COMES;
 	    send_pack.ackNo = recv_pack.packageNo;
 	      
 	    char send_buf[sizeof(send_pack)];
@@ -150,10 +166,8 @@ int main(int argc, char **argv) {
 	    /*TO-DO, pack all the ack together and send out */
 	    sendto(sr, send_buf, sizeof(send_buf), 0,
 	     (struct sockaddr *)&from_addr, sizeof(from_addr));
-
-	    printf("size %d\n", sizeof(recv_pack.data));
-	    nwritten = fwrite(recv_pack.data, 1, sizeof(recv_pack.data), fw);
-	    break; // for test
+	    
+	    //break; // for test
 	    /*
 	    if (bytes > 0) {
 	      nwritten = fwrite(mess_buf + sizeof(char), 1, bytes - sizeof(char), fw);
@@ -170,12 +184,12 @@ int main(int argc, char **argv) {
 	    }*/
 
 	  }
-        } else if (mess_buf[0] == '3') {
+        } else if (recv_msg.type == STOR_COMFIRM_CONN) {
 	  //receive connection ack from sender, start file transfer
-	  printf("received connection ack from sender, start file transfer...\n");
-	  status = 1; 
+	  printf("Received connection ack from sender, start file transfer...\n");
+	  status = RECEIVER_DATA_TRANSFER; 
         } else {
-          perror("Package error.\n");
+          perror("Packet error.\n");
           exit(0);
         }
       }
@@ -184,14 +198,18 @@ int main(int argc, char **argv) {
     printf("~~~~~~~~~~ send ~~~~~~~~~~~\n");
     printf("status: %d\n", status);
     //send
-    if (status == 0) { //send connection ack
-      printf("send out connection ack.\n");
-      ack_msg[0] = '1';
-      sendto(sr, ack_msg, strlen(ack_msg), 0,
+    if (status == RECEIVER_START_CONN) { //send connection ack
+      printf("Send out connection ack.\n");
+      struct START_CONN_MSG conn_msg;
+      conn_msg.msg.type = RTOS_START_CONN;
+
+      char conn_buf[sizeof(conn_msg)];
+      memcpy(conn_buf, &conn_msg, sizeof(conn_msg));
+      sendto(sr, conn_buf, strlen(conn_buf), 0,
 	     (struct sockaddr *)&from_addr, sizeof(from_addr));
     }
   }
-  fclose(fw);
+  //  fclose(fw);
 
   return 0;
 }
