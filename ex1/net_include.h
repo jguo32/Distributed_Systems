@@ -17,31 +17,38 @@
 #define MAX_MESS_LEN 1400
 #define NAME_LENGTH 80
 
-#define FILE_NAME_LEN 20
-#define PACKET_DATA_SIZE 10
-#define WIN_SIZE 5
+#define FILE_NAME_LEN 80
+#define PACKET_DATA_SIZE 1000
+#define WIN_SIZE 500
 
 #define READ_BUF_SIZE PACKET_DATA_SIZE*WIN_SIZE
 #define ACK_BUF_SIZE WIN_SIZE
 
+// Package types from receiver to sender
 #define RTOS_START_CONN   '1'
 #define RTOS_ACK_COMES    '2'
 #define RTOS_CLOSE_CONN   '3'
+#define RTOS_WAIT_CONN    '4'
+#define RTOS_AWAKE        '5'
 
+// Package types from sender to receiver
 #define STOR_START_CONN   '0'
 #define STOR_COMFIRM_CONN '1'
 #define STOR_PACKET_COMES '2'
 #define STOR_CLOSE_CONN   '3'
 
+// Sender status types
 #define SENDER_INIT_CONN       0
 #define SENDER_DATA_TRANSFER   1
 #define SENDER_CLOSE_CONN      2
 #define SENDER_TERMINATE       3
+#define SENDER_WAIT_CONN       4
 
+// Receiver status
 #define RECEIVER_FREE         -1
 #define RECEIVER_START_CONN    0
 #define RECEIVER_DATA_TRANSFER 1
-
+#define RECEIVER_WAIT_NEXT     2
 
 struct MSG {
   char type;
@@ -83,4 +90,18 @@ struct CONFIRM_CONN_MSG {
 /* Close Connectin */
 struct CLOSE_CONN_MSG {
   struct MSG msg;
+};
+
+struct WAIT_MSG {
+  struct MSG msg;
+};	
+
+struct AWAKE_MSG {
+  struct MSG msg;
+};
+
+/* ~~~~~~~~~~~~~~~~~ Sender Node struct ~~~~~~~~~~~~~~~~~ */
+struct SENDER_NODE {
+  struct sockaddr_in from_addr;
+  struct SENDER_NODE* next;
 };
