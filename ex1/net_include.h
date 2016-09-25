@@ -23,6 +23,10 @@
 
 #define READ_BUF_SIZE PACKET_DATA_SIZE*WIN_SIZE
 #define ACK_BUF_SIZE WIN_SIZE
+#define WRITE_BUF_SIZE WIN_SIZE*PACKET_DATA_SIZE*3
+#define PACK_BUF_SIZE WIN_SIZE*3
+
+#define RECV_WAIT_TIME 0.01
 
 // Package types from receiver to sender
 #define RTOS_START_CONN   '1'
@@ -58,7 +62,9 @@ struct MSG {
 /* Data Transfer: Msg from Sender to Receiver */
 struct STOR_MSG {
   struct MSG msg;
+  char lastPackage;
   int packageNo;
+  int dataSize;
   char data[PACKET_DATA_SIZE]; 
 };
 

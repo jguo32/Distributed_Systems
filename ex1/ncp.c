@@ -26,6 +26,7 @@ int main(int argc, char **argv) {
                   // conection)
   int sendPackNo; // the package No. that sender will start to send
   int lastPackNo; // the last package No.
+  int lastPackDataSize; 
 
   /* test
      send_package[0].type = '9';
@@ -163,7 +164,8 @@ int main(int argc, char **argv) {
   /* Init send package No, lastPackNo */
   sendPackNo = 0;
   lastPackNo = -1; //-1 : read haven't reach the end of file
-
+  lastPackDataSize = 0;
+  
   /* Init ack_buf and mapping_index, the inital val will be :
    * [0,1,2,3,...,WIN_SIZE-1] */
   for (int i = 0; i < WIN_SIZE; i++) {
@@ -175,8 +177,8 @@ LOOP:
   while (1) {
 
     // send
-    printf("~~~~~~~~~~ send ~~~~~~~~~~~~\n");
-    printf("status: %d\n", status);
+    // printf("~~~~~~~~~~ send ~~~~~~~~~~~~\n");
+    // printf("status: %d\n", status);
 
     if (status == SENDER_INIT_CONN) { // init connection
       /* Send the hello package to rcv */
@@ -186,7 +188,7 @@ LOOP:
 
       char conn_buf[sizeof(conn_msg)];
       memcpy(conn_buf, &conn_msg, sizeof(conn_msg));
-      sendto(ss, conn_buf, strlen(conn_buf), 0, (struct sockaddr *)&send_addr,
+      sendto(ss, conn_buf, sizeof(conn_buf), 0, (struct sockaddr *)&send_addr,
              sizeof(send_addr));
 
     } else if (status == SENDER_DATA_TRANSFER) {
@@ -194,8 +196,8 @@ LOOP:
       // step 1. read data from file
       /* Read in a chunk of the file */
 
-      printf("lastPackNo: %d\n", lastPackNo);
-      printf("readLen: %d\n", readLen);
+      // printf("lastPackNo: %d\n", lastPackNo);
+      // printf("readLen: %d\n", readLen);
 
       if (lastPackNo == -1 && readLen > 0) {
 
@@ -203,7 +205,7 @@ LOOP:
 
         nread = fread(read_buf, 1, readLen, fr);
 
-        printf("nread: %d\n", nread);
+        // printf("nread: %d\n", nread);
 
         /* fread returns a short count either at EOF or when an error occurred
          */
@@ -214,7 +216,9 @@ LOOP:
             lastPackNo = sendPackNo - readLen / PACKET_DATA_SIZE + WIN_SIZE -
                          1 + (nread / PACKET_DATA_SIZE +
                               (nread % PACKET_DATA_SIZE > 0 ? 1 : 0));
+	    lastPackDataSize = nread%PACKET_DATA_SIZE;
             printf("lastPackNo: %d\n", lastPackNo);
+	    printf("last time of read, data size: %d\n", lastPackDataSize);
           } else {
             printf("An error occured...\n");
             exit(0);
@@ -240,7 +244,7 @@ LOOP:
 
         // xixi kande feijin ba
         int p = sendPackNo % WIN_SIZE + n -
-                (sendPackNo % WIN_SIZE + n >= WIN_SIZE ? WIN_SIZE : 0);
+	  (sendPackNo % WIN_SIZE + n >= WIN_SIZE ? WIN_SIZE : 0);
 
         // printf("p: %d\n", p);
 
@@ -258,6 +262,13 @@ LOOP:
 
         /* Set the package No */
         send_package[n].packageNo = ack_buf[p];
+	if (send_package[n].packageNo == lastPackNo) {
+	  send_package[n].lastPackage = '1';
+	  send_package[n].dataSize = lastPackDataSize;
+	} else {
+	  send_package[n].lastPackage = '0';
+	  send_package[n].dataSize = lastPackDataSize;
+	}
 
         /* Copy data */
         int readPos = p * PACKET_DATA_SIZE;
@@ -292,14 +303,14 @@ LOOP:
 
     // receive
     // TO-DO: use while loop, until timeout (DONE!)
-    printf("~~~~~~~~~~ recv ~~~~~~~~~~~~\n");
-    printf("status: %d\n", status);
+    // printf("~~~~~~~~~~ recv ~~~~~~~~~~~~\n");
+    // printf("status: %d\n", status);
     struct timespec startTime, endTime;
     double totalTime, elapsedTime;
     clock_gettime(CLOCK_MONOTONIC, &startTime);
 
     /* Init total time */
-    totalTime = 0.1;
+    totalTime = RECV_WAIT_TIME;
 
     while (1) {
 
@@ -329,7 +340,7 @@ LOOP:
 
           struct MSG recv_msg;
           memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
-          printf("message type: %c\n", recv_msg.type);
+          //printf("message type: %c\n", recv_msg.type);
 
           if (recv_msg.type == RTOS_START_CONN) {
             if (status == SENDER_INIT_CONN || status == SENDER_DATA_TRANSFER) {
@@ -354,8 +365,10 @@ LOOP:
 
             struct RTOS_MSG recv_pack;
             memcpy(&recv_pack, mess_buf, sizeof(recv_pack));
-            printf("receive ack from receiver. (ack no: %d)\n",
-                   recv_pack.ackNo);
+	    if (recv_pack.ackNo%WIN_SIZE == 0) {
+	      printf("receive ack from receiver. (ack no: %d)\n",
+		     recv_pack.ackNo);
+	    }
 
             // sendPackNo += (sendPackNo == recv_pack.ackNo ? 1:0);
             int p = recv_pack.ackNo % WIN_SIZE;
@@ -410,10 +423,11 @@ LOOP:
       /* Compute how much data should be read */
       readLen = incre * PACKET_DATA_SIZE;
 
-      printf("sendPackNo: %d\n", sendPackNo);
-
+      // printf("sendPackNo: %d\n", sendPackNo);
+      
       if (sendPackNo == lastPackNo + 1) {
-        printf("data was already completely transfered! \n");
+	printf("lastPackNo: %d\n", lastPackNo);
+	printf("data was already completely transfered! \n");
         status = SENDER_CLOSE_CONN; // prepare to close connection
       }
 
