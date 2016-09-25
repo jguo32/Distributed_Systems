@@ -277,6 +277,7 @@ LOOP:
         memcpy(send_package[n].data, data_buf + readPos, PACKET_DATA_SIZE);
         memcpy(send_buf, &send_package[n], sizeof(send_package[n]));
 
+	//printf("pack no: %d\n", send_package[n].packageNo);
         //printf("pack No.%d: %s\n", send_package[n].packageNo, send_package[n].data);
 
         sendto(ss, send_buf, sizeof(send_buf), 0, (struct sockaddr *)&send_addr,
@@ -365,16 +366,20 @@ LOOP:
 
             struct RTOS_MSG recv_pack;
             memcpy(&recv_pack, mess_buf, sizeof(recv_pack));
-	    if (recv_pack.ackNo%WIN_SIZE == 0) {
-	      printf("receive ack from receiver. (ack no: %d)\n",
-		     recv_pack.ackNo);
+
+	    // printf("AckNum: %d\n", recv_pack.ackNum);
+	    for (int i=0; i<recv_pack.ackNum; i++) {
+
+	      if (recv_pack.ackNo[i]%WIN_SIZE == 0) {		 
+	        printf("receive ack from receiver. no: %d\n",
+		       recv_pack.ackNo[i]);
+	      }
+	      
+	      int p = recv_pack.ackNo[i] % WIN_SIZE;
+	      if (ack_buf[p] == recv_pack.ackNo[i]) 
+		ack_buf[p] = recv_pack.ackNo[i] + WIN_SIZE;
 	    }
-
-            // sendPackNo += (sendPackNo == recv_pack.ackNo ? 1:0);
-            int p = recv_pack.ackNo % WIN_SIZE;
-            ack_buf[p] = recv_pack.ackNo + WIN_SIZE;
-
-            /*
+	                      /*
             printf("ackbuf0: %d\n", ack_buf[0]);
             printf("ackbuf1: %d\n", ack_buf[1]);
             printf("ackbuf2: %d\n", ack_buf[2]);

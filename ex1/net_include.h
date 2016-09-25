@@ -14,7 +14,7 @@
 
 #define PORT	     10270
 
-#define MAX_MESS_LEN 1400
+#define MAX_MESS_LEN WIN_SIZE*100
 #define NAME_LENGTH 80
 
 #define FILE_NAME_LEN 80
@@ -26,7 +26,7 @@
 #define WRITE_BUF_SIZE WIN_SIZE*PACKET_DATA_SIZE*3
 #define PACK_BUF_SIZE WIN_SIZE*3
 
-#define RECV_WAIT_TIME 0.01
+#define RECV_WAIT_TIME 0.001
 
 // Package types from receiver to sender
 #define RTOS_START_CONN   '1'
@@ -71,7 +71,8 @@ struct STOR_MSG {
 /* Data Transfer: Msg from Receiver to Sender */
 struct RTOS_MSG {
   struct MSG msg;
-  int ackNo;
+  int ackNum;
+  int ackNo[WIN_SIZE];
 };
 
 /* ~~~~~~~~~~~~~~~~~ Connection struct ~~~~~~~~~~~~~~~~~ */

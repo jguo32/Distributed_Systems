@@ -21,6 +21,7 @@ int main(int argc, char **argv) {
   char mess_buf[MAX_MESS_LEN];
   char write_buf[WRITE_BUF_SIZE];
   int rcv_buf[PACK_BUF_SIZE];   //record currect received package number
+  struct RTOS_MSG sendAck_pack; //ack message
   
   /* Variables for UDP file transfer */
   struct sockaddr_in name;
@@ -125,6 +126,9 @@ int main(int argc, char **argv) {
     /* Init total time */
     totalTime = RECV_WAIT_TIME;
 
+    /* Init number of received packages */
+    int ackNum = 0;
+    
     /* Clear message buffer */
     // memset(mess_buf, 0, MAX_MESS_LEN);
 
@@ -285,21 +289,10 @@ int main(int argc, char **argv) {
 	      // fwrite(recv_pack.data, 1,
 	      //      MIN(sizeof(recv_pack.data), strlen(recv_pack.data)), fw);
 
-	      struct RTOS_MSG send_pack;
-	      send_pack.msg.type = RTOS_ACK_COMES;
-	      send_pack.ackNo = recv_pack.packageNo;
-
-	      // printf("write_buf 0:%c\n", write_buf[0]);
-	      // printf("rcv_buf   0:%d\n", rcv_buf[0]);
+	      // printf("ack %d: %d\n", ackNum, recv_pack.packageNo);
+	      sendAck_pack.ackNo[ackNum] = recv_pack.packageNo;
+	      ackNum ++;
 	      
-	      char send_buf[sizeof(send_pack)];
-	      memcpy(send_buf, &send_pack, sizeof(send_pack));
-
-	      /*TO-DO, pack all the ack together and send out */
-	      sendto(sr, send_buf, sizeof(send_buf), 0,
-		     (struct sockaddr *)&(head->next->from_addr),
-		     sizeof(head->next->from_addr));
-
 	      // break; // for test
 	      /*
 		if (bytes > 0) {
@@ -362,8 +355,8 @@ int main(int argc, char **argv) {
       /* if rcvPackNo-startWriteNo larger that WIN_SIZE, write data to file */
       if (rcvPackNo-startWriteNo > WIN_SIZE) {
 	/* write startWriteNo -> startWriteNo+WIN_SIZE */
-	printf("write to file, from %d to %d\n",
-	       startWriteNo, startWriteNo+WIN_SIZE);
+	//	printf("write to file, from %d to %d\n",
+	//     startWriteNo, startWriteNo+WIN_SIZE);
 	if (startWriteNo + WIN_SIZE >= lastPackNo) {
 	  nwritten = fwrite(write_buf, 1,
 			    PACKET_DATA_SIZE*(WIN_SIZE-1)+lastPackDataSize, fw);
@@ -375,9 +368,11 @@ int main(int argc, char **argv) {
 	*/
 	int len = rcvPackNo - startWriteNo;
 
+	//printf("write1\n");
 	memcpy(write_buf, write_buf+WIN_SIZE,  WRITE_BUF_SIZE-WIN_SIZE);
 	memset(write_buf+WRITE_BUF_SIZE-WIN_SIZE, 0, WIN_SIZE);
 
+	//printf("write2\n");
 	memcpy(rcv_buf, rcv_buf+WIN_SIZE,
 	       (PACKET_DATA_SIZE-WIN_SIZE)*sizeof(int));
 	memset(rcv_buf+(PACKET_DATA_SIZE-WIN_SIZE), 0,
@@ -407,7 +402,26 @@ int main(int argc, char **argv) {
       sendto(sr, awake_buf, strlen(awake_buf), 0,
              (struct sockaddr *)&(head->next->from_addr),
              sizeof(head->next->from_addr));
+    } else if (status == RECEIVER_DATA_TRANSFER) {
+
+      // printf("ackNum: %d\n", ackNum);
+      sendAck_pack.msg.type = RTOS_ACK_COMES;
+      sendAck_pack.ackNum = ackNum;
+
+      /*
+      for (int i=0; i<sendAck_pack.ackNum; i++) {
+       	printf("ack: %d\n", sendAck_pack.ackNo[i]);
+      }
+      */
+      
+      char send_buf[sizeof(sendAck_pack)];			        
+      memcpy(send_buf, &sendAck_pack, sizeof(sendAck_pack));	        
+                                                    
+      sendto(sr, send_buf, sizeof(send_buf), 0,		  
+	     (struct sockaddr *)&(head->next->from_addr),       
+	     sizeof(head->next->from_addr));            
     } else {
+      
     }
   }
   //  fclose(fw);
