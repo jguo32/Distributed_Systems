@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
   int bytes;
   int num;
   int status;
-  char mess_buf[MAX_MESS_LEN];
+  char mess_buf[RECEIVER_MAX_MESS_LEN];
   char write_buf[WRITE_BUF_SIZE];
   int rcv_buf[PACK_BUF_SIZE];   //record currect received package number
   struct RTOS_MSG sendAck_pack; //ack message

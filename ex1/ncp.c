@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
   char *file_name;
   char *dest_file_name;
   FILE *fr;
-  char mess_buf[MAX_MESS_LEN];            // message buffer from receiver
+  char mess_buf[SENDER_MAX_MESS_LEN];            // message buffer from receiver
   struct STOR_MSG send_package[WIN_SIZE]; // packages struct;
   // char send_buf[sizeof(send_package[0])]; //send data buffer to receiver
   char read_buf[READ_BUF_SIZE]; // read data buffer from file
