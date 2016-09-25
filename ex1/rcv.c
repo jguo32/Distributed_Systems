@@ -216,6 +216,8 @@ int main(int argc, char **argv) {
 				PACKET_DATA_SIZE*dataLen+lastPackDataSize, fw);
 	      fclose(fw);
 
+	      printf("Data written to file complete !\n");
+	      
 	      // TODO: Remove current sender (head) from the list
 	      // and send ack to the next sender (if there is one)
 	      struct SENDER_NODE *next_sender = head->next;
@@ -225,6 +227,7 @@ int main(int argc, char **argv) {
 		status = RECEIVER_FREE;
 		curr = head;
 	      } else {
+		printf("Start to notified next Sender");
 		from_addr = head->from_addr;
 		status = RECEIVER_WAIT_NEXT;
 	      }
