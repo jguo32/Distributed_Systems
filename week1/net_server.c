@@ -49,7 +49,9 @@ int main()
         temp_mask = mask;
         num = select( FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, NULL);
         if (num > 0) {
+	  printf("receiver msg\n");
             if ( FD_ISSET(s,&temp_mask) ) {
+ 	        printf("set");
                 recv_s[i] = accept(s, 0, 0) ;
                 FD_SET(recv_s[i], &mask);
                 valid[i] = 1;
@@ -58,11 +60,13 @@ int main()
             for(j=0; j<i ; j++)
             {   if (valid[j])    
                 if ( FD_ISSET(recv_s[j],&temp_mask) ) {
+		  printf("rcv");
                     if( recv(recv_s[j],&mess_len,sizeof(mess_len),0) > 0) {
                         neto_len = mess_len - sizeof(mess_len);
                         recv(recv_s[j], mess_buf, neto_len, 0 );
                         mess_buf[neto_len] = '\0';
-                    
+
+			printf("mess_len:%d neto_len:%d\n", mess_len, neto_len);
                         printf("socket is %d ",j);
                         printf("len is :%d  message is : %s \n ",
                                mess_len,mess_buf); 
