@@ -18,6 +18,8 @@ clean:
 	rm test
 	rm ncp
 	rm rcv
+clear:
+	rm copy*
 
 %.o:    %.c
 	$(CC) $(CFLAGS) $*.c
