@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
 
   /* Init send package No, lastPackNo */
   sendPackNo = 0;
-  lastPackNo = -1; //-1 : read haven't reach the end of file
+  lastPackNo = -2; //-2 : read haven't reach the end of file
   lastPackDataSize = 0;
   
   /* Init ack_buf and mapping_index, the inital val will be :
@@ -199,7 +199,7 @@ LOOP:
       // printf("lastPackNo: %d\n", lastPackNo);
       // printf("readLen: %d\n", readLen);
 
-      if (lastPackNo == -1 && readLen > 0) {
+      if (lastPackNo == -2 && readLen > 0) {
 
         memset(read_buf, 0, READ_BUF_SIZE);
 
@@ -211,6 +211,9 @@ LOOP:
          */
         if (nread < readLen) {
           if (feof(fr)) {
+	    printf("nread: %d\n", nread);
+	    printf("read len: %d\n", readLen);
+	    printf("send pack no: %d\n", sendPackNo);
             printf("Finished reading data from files.\n");
             /* compute the package the last package No */
             lastPackNo = sendPackNo - readLen / PACKET_DATA_SIZE + WIN_SIZE -
@@ -253,7 +256,7 @@ LOOP:
           continue;
 
         /*check if the packageNo is larger than the last packageNo */
-        if (lastPackNo != -1 && ack_buf[p] > lastPackNo)
+        if (lastPackNo != -2 && ack_buf[p] > lastPackNo)
           continue;
 
         /* Set the header of the package */
@@ -370,10 +373,12 @@ LOOP:
 	    // printf("AckNum: %d\n", recv_pack.ackNum);
 	    for (int i=0; i<recv_pack.ackNum; i++) {
 
+	      /*
 	      if (recv_pack.ackNo[i]%WIN_SIZE == 0) {		 
 	        printf("receive ack from receiver. no: %d\n",
 		       recv_pack.ackNo[i]);
 	      }
+	      */
 	      
 	      int p = recv_pack.ackNo[i] % WIN_SIZE;
 	      if (ack_buf[p] == recv_pack.ackNo[i]) 

@@ -211,7 +211,11 @@ int main(int argc, char **argv) {
 	      printf("last package %d data size: %d\n",
 		     lastPackNo, lastPackDataSize);
 	      /* Write last data into file */
-	      int dataLen = rcvPackNo - startWriteNo;
+
+	      printf("rcvPackNo : %d\n", rcvPackNo);
+	      printf("startWriteNo : %d\n", startWriteNo); 
+	      int dataLen = rcvPackNo - startWriteNo +
+		(lastPackDataSize == 0 ? 1:0);
 	      nwritten = fwrite(write_buf, 1,                                       
 				PACKET_DATA_SIZE*dataLen+lastPackDataSize, fw);
 	      fclose(fw);
@@ -274,10 +278,23 @@ int main(int argc, char **argv) {
 	      // printf("Receive package (no: %d)\n", recv_pack.packageNo);
 
 	      int len = recv_pack.packageNo-startWriteNo;			  
-	      if (len >= 0 && rcv_buf[len] == 0) { 				  
-		memcpy(write_buf+len, recv_pack.data, 				  
-		       MIN(sizeof(recv_pack.data), strlen(recv_pack.data)));	     
+	      if (len >= 0 && rcv_buf[len] == 0) {
+		// printf("write len:%d, rcv:%d\n", len, rcv_buf[len]);
+		// printf("sendpageNo :%d\n",recv_pack.packageNo);
+		memcpy(write_buf+PACKET_DATA_SIZE*len,
+		       recv_pack.data, sizeof(recv_pack.data));
+
+		/*
+		for (int i=0; i<WRITE_BUF_SIZE; i++) {
+		  printf("%d:%c ", i, write_buf[i]);
+		}
+		printf("\n");printf("\n");
+		*/
+		
+		//memcpy(write_buf+len, recv_pack.data, 			    
+		//MIN(sizeof(recv_pack.data), strlen(recv_pack.data)));	     
 		rcv_buf[len] = (recv_pack.packageNo == 0 ? 1:recv_pack.packageNo);
+
 		if (recv_pack.lastPackage = '1') {
 		  lastPackDataSize = recv_pack.dataSize;
 		  lastPackNo = recv_pack.packageNo;
@@ -362,25 +379,38 @@ int main(int argc, char **argv) {
 	//     startWriteNo, startWriteNo+WIN_SIZE);
 	if (startWriteNo + WIN_SIZE >= lastPackNo) {
 	  nwritten = fwrite(write_buf, 1,
-			    PACKET_DATA_SIZE*(WIN_SIZE-1)+lastPackDataSize, fw);
+		    PACKET_DATA_SIZE*(lastPackNo-startWriteNo)+lastPackDataSize, fw);
 	} else {
 	  nwritten = fwrite(write_buf, 1, PACKET_DATA_SIZE*WIN_SIZE, fw);
 	}
 	/* shift 
 	(WIN_SIZE, WIN_SIZE+(rcvPackNo-startWriteNo)) -> (0, rcvPackNo-startWriteNo)
 	*/
-	int len = rcvPackNo - startWriteNo;
 
-	//printf("write1\n");
-	memcpy(write_buf, write_buf+WIN_SIZE,  WRITE_BUF_SIZE-WIN_SIZE);
-	memset(write_buf+WRITE_BUF_SIZE-WIN_SIZE, 0, WIN_SIZE);
+	memcpy(write_buf, write_buf+PACKET_DATA_SIZE*WIN_SIZE,
+	       WRITE_BUF_SIZE-WIN_SIZE*PACKET_DATA_SIZE);
+	memset(write_buf+WRITE_BUF_SIZE-WIN_SIZE*PACKET_DATA_SIZE,
+	       0, PACKET_DATA_SIZE*WIN_SIZE);
 
-	//printf("write2\n");
+	/*
+	for (int i=0; i<WRITE_BUF_SIZE; i++) {
+	  printf("%d:%c ", i, write_buf[i]);
+	}
+	printf("\n");printf("\n");
+	*/
 	memcpy(rcv_buf, rcv_buf+WIN_SIZE,
-	       (PACKET_DATA_SIZE-WIN_SIZE)*sizeof(int));
-	memset(rcv_buf+(PACKET_DATA_SIZE-WIN_SIZE), 0,
+	       (PACK_BUF_SIZE-WIN_SIZE)*sizeof(int));
+	memset(rcv_buf+(PACK_BUF_SIZE-WIN_SIZE), 0,
 	       WIN_SIZE*sizeof(int));
+
 	startWriteNo += WIN_SIZE;
+	/*
+	printf("ddd\n");
+	for (int i=0; i<PACK_BUF_SIZE; i++)
+	  printf("%d:%d ", i, rcv_buf[i]);
+	printf("....\n");
+	printf("\n");printf("\n");
+	*/
       }
     }
     
@@ -416,13 +446,14 @@ int main(int argc, char **argv) {
        	printf("ack: %d\n", sendAck_pack.ackNo[i]);
       }
       */
-      
-      char send_buf[sizeof(sendAck_pack)];			        
+
+      char send_buf[sizeof(sendAck_pack)];     
       memcpy(send_buf, &sendAck_pack, sizeof(sendAck_pack));	        
-                                                    
+
       sendto(sr, send_buf, sizeof(send_buf), 0,		  
 	     (struct sockaddr *)&(head->next->from_addr),       
-	     sizeof(head->next->from_addr));            
+	     sizeof(head->next->from_addr));
+
     } else {
       
     }
