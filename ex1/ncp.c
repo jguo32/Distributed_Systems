@@ -3,6 +3,7 @@
 #include <time.h>
 #include "net_include.h"
 #include "sendto_dbg.h"
+#include "sendto_dbg.c"
 
 int main(int argc, char **argv) {
   /* Variables for file read */
@@ -76,7 +77,7 @@ int main(int argc, char **argv) {
 
   fd_set mask;
   fd_set dummy_mask, temp_mask;
-
+  
   //  struct timeval timeout;
 
   /* Other parameters */
@@ -173,6 +174,8 @@ int main(int argc, char **argv) {
     mapping_index[i] = i;
   }
 
+  sendto_dbg_init(loss_rate);
+  
 LOOP:
   while (1) {
 
@@ -188,7 +191,7 @@ LOOP:
 
       char conn_buf[sizeof(conn_msg)];
       memcpy(conn_buf, &conn_msg, sizeof(conn_msg));
-      sendto(ss, conn_buf, sizeof(conn_buf), 0, (struct sockaddr *)&send_addr,
+      sendto_dbg(ss, conn_buf, sizeof(conn_buf), 0, (struct sockaddr *)&send_addr,
              sizeof(send_addr));
 
     } else if (status == SENDER_DATA_TRANSFER) {
@@ -265,13 +268,8 @@ LOOP:
 
         /* Set the package No */
         send_package[n].packageNo = ack_buf[p];
-	if (send_package[n].packageNo == lastPackNo) {
-	  send_package[n].lastPackage = '1';
-	  send_package[n].dataSize = lastPackDataSize;
-	} else {
-	  send_package[n].lastPackage = '0';
-	  send_package[n].dataSize = lastPackDataSize;
-	}
+	send_package[n].lastPackNo = lastPackNo;
+	send_package[n].dataSize = lastPackDataSize;
 
         /* Copy data */
         int readPos = p * PACKET_DATA_SIZE;
@@ -283,8 +281,8 @@ LOOP:
 	//printf("pack no: %d\n", send_package[n].packageNo);
         //printf("pack No.%d: %s\n", send_package[n].packageNo, send_package[n].data);
 
-        sendto(ss, send_buf, sizeof(send_buf), 0, (struct sockaddr *)&send_addr,
-               sizeof(send_addr));
+        sendto_dbg(ss, send_buf, sizeof(send_buf), 0, (struct sockaddr *)&send_addr,
+		   sizeof(send_addr));
       }
 
     } else if (status == SENDER_CLOSE_CONN) {
@@ -295,8 +293,8 @@ LOOP:
 
       char close_buf[sizeof(close_msg)];
       memcpy(close_buf, &close_msg, sizeof(close_msg));
-      sendto(ss, close_buf, sizeof(close_buf), 0, (struct sockaddr *)&send_addr,
-             sizeof(send_addr));
+      sendto_dbg(ss, close_buf, sizeof(close_buf), 0, (struct sockaddr *)&send_addr,
+		 sizeof(send_addr));
     } else if (status == SENDER_WAIT_CONN) {
       // TODO: let the sender to wait the receiver's ack to establish connection
 
@@ -357,8 +355,8 @@ LOOP:
 
               char conn_buf[sizeof(conn_msg)];
               memcpy(conn_buf, &conn_msg, sizeof(conn_msg));
-              sendto(ss, conn_buf, strlen(conn_buf), 0,
-                     (struct sockaddr *)&send_addr, sizeof(send_addr));
+              sendto_dbg(ss, conn_buf, strlen(conn_buf), 0,
+			 (struct sockaddr *)&send_addr, sizeof(send_addr));
 
               status = SENDER_DATA_TRANSFER;
 
@@ -374,20 +372,24 @@ LOOP:
 	    for (int i=0; i<recv_pack.ackNum; i++) {
 
 	      /*
-	      if (recv_pack.ackNo[i]%WIN_SIZE == 0) {		 
+		if (recv_pack.ackNo[i]%WIN_SIZE == 0) {		 
 	        printf("receive ack from receiver. no: %d\n",
-		       recv_pack.ackNo[i]);
-	      }
+		recv_pack.ackNo[i]);
+		}
 	      */
+
+	      //printf("receive ack from receiver. no: %d\n",
+	      //       recv_pack.ackNo[i]);                  
+
 	      
 	      int p = recv_pack.ackNo[i] % WIN_SIZE;
 	      if (ack_buf[p] == recv_pack.ackNo[i]) 
 		ack_buf[p] = recv_pack.ackNo[i] + WIN_SIZE;
 	    }
-	                      /*
-            printf("ackbuf0: %d\n", ack_buf[0]);
-            printf("ackbuf1: %d\n", ack_buf[1]);
-            printf("ackbuf2: %d\n", ack_buf[2]);
+	    /*
+	      printf("ackbuf0: %d\n", ack_buf[0]);
+	      printf("ackbuf1: %d\n", ack_buf[1]);
+	      printf("ackbuf2: %d\n", ack_buf[2]);
             printf("ackbuf3: %d\n", ack_buf[3]);
             printf("ackbuf4: %d\n", ack_buf[4]);*/
 

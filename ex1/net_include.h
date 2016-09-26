@@ -64,7 +64,7 @@ struct MSG {
 /* Data Transfer: Msg from Sender to Receiver */
 struct STOR_MSG {
   struct MSG msg;
-  char lastPackage;
+  int lastPackNo;
   int packageNo;
   int dataSize;
   char data[PACKET_DATA_SIZE]; 
