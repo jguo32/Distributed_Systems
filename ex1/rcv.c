@@ -104,6 +104,7 @@ LOOP:
             /* Open or create the destination file for writing */
 	    struct OPEN_CONN_MSG open_conn_msg;
 	    memcpy(&open_conn_msg, mess_buf, sizeof(open_conn_msg));
+	    printf("File name is %s\n", open_conn_msg.filename);
             if ((fw = fopen(open_conn_msg.filename, "w")) == NULL) {
               perror("fopen");
               exit(0);

@@ -95,6 +95,7 @@ int main(int argc, char **argv) {
   token = strtok(argv[3], "@");
   dest_file_name = (char *)malloc(strlen(token));
   strcpy(dest_file_name, token);
+  dest_file_name[strlen(token)] = '\0';
 
   token = strtok(NULL, "@");
   if (strlen(token) > NAME_LENGTH) {
@@ -186,7 +187,7 @@ LOOP:
 
       char conn_buf[sizeof(conn_msg)];
       memcpy(conn_buf, &conn_msg, sizeof(conn_msg));
-      sendto(ss, conn_buf, strlen(conn_buf), 0, (struct sockaddr *)&send_addr,
+      sendto(ss, conn_buf, sizeof(conn_buf), 0, (struct sockaddr *)&send_addr,
              sizeof(send_addr));
 
     } else if (status == SENDER_DATA_TRANSFER) {
