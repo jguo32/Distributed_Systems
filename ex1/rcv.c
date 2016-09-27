@@ -7,6 +7,7 @@
 #include <time.h>
 #include "net_include.h"
 #include "sendto_dbg.h"
+#include "sendto_dbg.c"
 
 #define MIN(x, y) (x > y ? y : x)
 
@@ -101,6 +102,8 @@ int main(int argc, char **argv) {
   FD_SET(sr, &mask);
   status = RECEIVER_FREE;
 
+  sendto_dbg_init(loss_rate);
+  
   /* Init receiver package number */
   rcvPackNo = -1;
 
@@ -114,6 +117,10 @@ int main(int argc, char **argv) {
   lastPackDataSize = 0;
 
   memset(rcv_buf, 0, PACK_BUF_SIZE*sizeof(int));
+  memset(write_buf, 0, WRITE_BUF_SIZE);
+  memset(mess_buf, 0, RECEIVER_MAX_MESS_LEN);
+
+  int count = 0;
  LOOP:
   while (1) {
     // printf("~~~~~~~~~~ recv ~~~~~~~~~~~\n");
@@ -169,7 +176,7 @@ int main(int argc, char **argv) {
 		wait_msg.msg.type = RTOS_WAIT_CONN;
 		char wait_buf[sizeof(wait_msg)];
 		memcpy(wait_buf, &wait_msg, sizeof(wait_msg));
-		sendto(sr, wait_buf, sizeof(wait_buf), 0,
+		sendto_dbg(sr, wait_buf, sizeof(wait_buf), 0,
 		       (struct sockaddr *)&from_addr, sizeof(from_addr));
 	      }
 	    }
@@ -219,7 +226,7 @@ int main(int argc, char **argv) {
 	      nwritten = fwrite(write_buf, 1,                                       
 				PACKET_DATA_SIZE*dataLen+lastPackDataSize, fw);
 	      fclose(fw);
-
+	      printf("count: %d\n", count);
 	      printf("Data written to file complete !\n");
 	      
 	      // TODO: Remove current sender (head) from the list
@@ -252,7 +259,7 @@ int main(int argc, char **argv) {
 	    close_msg.msg.type = RTOS_CLOSE_CONN;
 	    char close_buf[sizeof(close_msg)];
 	    memcpy(close_buf, &close_msg, sizeof(close_msg));
-	    sendto(sr, close_buf, sizeof(close_buf), 0,
+	    sendto_dbg(sr, close_buf, sizeof(close_buf), 0,
 		   (struct sockaddr *)&from_addr,
 		   sizeof(from_addr));
 	   	    
@@ -295,9 +302,9 @@ int main(int argc, char **argv) {
 		//MIN(sizeof(recv_pack.data), strlen(recv_pack.data)));	     
 		rcv_buf[len] = (recv_pack.packageNo == 0 ? 1:recv_pack.packageNo);
 
-		if (recv_pack.lastPackage = '1') {
+		if (recv_pack.lastPackNo >= 0) {
 		  lastPackDataSize = recv_pack.dataSize;
-		  lastPackNo = recv_pack.packageNo;
+		  lastPackNo = recv_pack.lastPackNo;
 		}
 	      }
 	      
@@ -377,7 +384,8 @@ int main(int argc, char **argv) {
 	/* write startWriteNo -> startWriteNo+WIN_SIZE */
 	//	printf("write to file, from %d to %d\n",
 	//     startWriteNo, startWriteNo+WIN_SIZE);
-	if (startWriteNo + WIN_SIZE >= lastPackNo) {
+	if (startWriteNo + WIN_SIZE >= lastPackNo && lastPackNo >=0) {
+	  printf("lastPackNo : %d\n", lastPackNo);
 	  nwritten = fwrite(write_buf, 1,
 		    PACKET_DATA_SIZE*(lastPackNo-startWriteNo)+lastPackDataSize, fw);
 	} else {
@@ -387,6 +395,13 @@ int main(int argc, char **argv) {
 	(WIN_SIZE, WIN_SIZE+(rcvPackNo-startWriteNo)) -> (0, rcvPackNo-startWriteNo)
 	*/
 
+	/*
+        for (int i=0; i<WRITE_BUF_SIZE; i++) {
+          printf("%d:%c ", i, write_buf[i]);  
+        }                                     
+        printf("\n");printf("\n");            	
+	*/
+	count ++;
 	memcpy(write_buf, write_buf+PACKET_DATA_SIZE*WIN_SIZE,
 	       WRITE_BUF_SIZE-WIN_SIZE*PACKET_DATA_SIZE);
 	memset(write_buf+WRITE_BUF_SIZE-WIN_SIZE*PACKET_DATA_SIZE,
@@ -397,7 +412,8 @@ int main(int argc, char **argv) {
 	  printf("%d:%c ", i, write_buf[i]);
 	}
 	printf("\n");printf("\n");
-	*/
+	*/	
+
 	memcpy(rcv_buf, rcv_buf+WIN_SIZE,
 	       (PACK_BUF_SIZE-WIN_SIZE)*sizeof(int));
 	memset(rcv_buf+(PACK_BUF_SIZE-WIN_SIZE), 0,
@@ -424,7 +440,7 @@ int main(int argc, char **argv) {
 
       char conn_buf[sizeof(conn_msg)];
       memcpy(conn_buf, &conn_msg, sizeof(conn_msg));
-      sendto(sr, conn_buf, strlen(conn_buf), 0,
+      sendto_dbg(sr, conn_buf, strlen(conn_buf), 0,
              (struct sockaddr *)&(head->next->from_addr),
              sizeof(head->next->from_addr));
     } else if (status == RECEIVER_WAIT_NEXT) {
@@ -432,7 +448,7 @@ int main(int argc, char **argv) {
       awake_msg.msg.type = RTOS_AWAKE;
       char awake_buf[sizeof(awake_msg)];
       memcpy(awake_buf, &awake_msg, sizeof(awake_msg));
-      sendto(sr, awake_buf, strlen(awake_buf), 0,
+      sendto_dbg(sr, awake_buf, strlen(awake_buf), 0,
              (struct sockaddr *)&(head->next->from_addr),
              sizeof(head->next->from_addr));
     } else if (status == RECEIVER_DATA_TRANSFER) {
@@ -442,7 +458,7 @@ int main(int argc, char **argv) {
       sendAck_pack.ackNum = ackNum;
 
       /*
-      for (int i=0; i<sendAck_pack.ackNum; i++) {
+      for (int iOA=0; i<sendAck_pack.ackNum; i++) {
        	printf("ack: %d\n", sendAck_pack.ackNo[i]);
       }
       */
@@ -450,7 +466,7 @@ int main(int argc, char **argv) {
       char send_buf[sizeof(sendAck_pack)];     
       memcpy(send_buf, &sendAck_pack, sizeof(sendAck_pack));	        
 
-      sendto(sr, send_buf, sizeof(send_buf), 0,		  
+      sendto_dbg(sr, send_buf, sizeof(send_buf), 0,		  
 	     (struct sockaddr *)&(head->next->from_addr),       
 	     sizeof(head->next->from_addr));
 
