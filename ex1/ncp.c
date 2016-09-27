@@ -1,4 +1,4 @@
-w#include <arpa/inet.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <time.h>
 #include "net_include.h"
