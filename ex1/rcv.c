@@ -120,6 +120,12 @@ int main(int argc, char **argv) {
   memset(write_buf, 0, WRITE_BUF_SIZE);
   memset(mess_buf, 0, RECEIVER_MAX_MESS_LEN);
 
+
+  struct timespec start_all, end_all, last_all; /*record the transfer time*/ 
+  double elapsed_all, elapsed_total;                        
+  clock_gettime(CLOCK_MONOTONIC, &start_all);
+  last_all = start_all;
+
   int count = 0;
  LOOP:
   while (1) {
@@ -219,8 +225,8 @@ int main(int argc, char **argv) {
 		     lastPackNo, lastPackDataSize);
 	      /* Write last data into file */
 
-	      printf("rcvPackNo : %d\n", rcvPackNo);
-	      printf("startWriteNo : %d\n", startWriteNo); 
+	      //printf("rcvPackNo : %d\n", rcvPackNo);
+	      //printf("startWriteNo : %d\n", startWriteNo); 
 	      int dataLen = rcvPackNo - startWriteNo +
 		(lastPackDataSize == 0 ? 1:0);
 	      nwritten = fwrite(write_buf, 1,                                       
@@ -228,7 +234,16 @@ int main(int argc, char **argv) {
 	      fclose(fw);
 	      printf("count: %d\n", count);
 	      printf("Data written to file complete !\n");
-	      
+
+	      clock_gettime(CLOCK_MONOTONIC, &end_all);                   	 
+	      elapsed_all = (end_all.tv_sec - start_all.tv_sec);                  
+	      elapsed_all += (end_all.tv_nsec - start_all.tv_nsec) / 1000000000.0;
+
+	      double transfered = (lastPackNo*1000)/(1024*1024);
+	      double trans_rate = ((lastPackNo*1000+lastPackDataSize)*8)/(1000000*elapsed_all);
+	      printf("Total Time: %f sec\nFile data were completely transfered, and %f Mbytes were successfully transfered.\n", elapsed_all, transfered);
+	      printf("The average transfer rate is: %f Mbits/sec\n", trans_rate);
+
 	      // TODO: Remove current sender (head) from the list
 	      // and send ack to the next sender (if there is one)
 	      struct SENDER_NODE *next_sender = head->next;
@@ -374,6 +389,22 @@ int main(int argc, char **argv) {
       while ((rcvPackNo == -1 && rcv_buf[0] == 1) ||
 	     (rcvPackNo != -1 && rcvPackNo+1 == rcv_buf[rcvPackNo+1-startWriteNo])) {
 	rcvPackNo ++;
+
+	if (rcvPackNo != 0 && rcvPackNo % 100000000 == 0) {
+	  clock_gettime(CLOCK_MONOTONIC, &end_all);                   	 
+	  elapsed_all = (end_all.tv_sec - last_all.tv_sec);                  
+	  elapsed_all += (end_all.tv_nsec - last_all.tv_nsec) / 1000000000.0;
+
+	  elapsed_total = (end_all.tv_sec - start_all.tv_sec);                  
+	  elapsed_total += (end_all.tv_nsec - start_all.tv_nsec) / 1000000000.0;
+	  
+	  double transfered = ((rcvPackNo+1)*1000)/(1024*1024);
+	  double trans_rate = (100*1024*1024*8)/(1000000*elapsed_all);
+	  printf("Time: %f sec passed.\n100Mbytes data were received, and %f Mbytes were successfully transfered.\n", elapsed_total, transfered);
+	  printf("The current average transfer rate is: %f Mbits/sec.\n\n", trans_rate);
+
+	  last_all = end_all;
+	}
       }
 
       // printf("send pack no %d\n", rcvPackNo);
