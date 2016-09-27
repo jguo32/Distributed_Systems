@@ -290,7 +290,7 @@ LOOP:
 		   sizeof(send_addr));
 
 	// printf("sendPackNo: %d\n", sendPackNo);
-	if (0 && ack_buf[p] % 100000000 == 0) {
+	if (ack_buf[p] != 0 && ack_buf[p] % 100000000 == 0) {
 	  clock_gettime(CLOCK_MONOTONIC, &end_all);                   	 
 	  elapsed_all = (end_all.tv_sec - last_all.tv_sec);                  
 	  elapsed_all += (end_all.tv_nsec - last_all.tv_nsec) / 1000000000.0;
@@ -485,7 +485,7 @@ LOOP:
   elapsed_all += (end_all.tv_nsec - start_all.tv_nsec) / 1000000000.0;
 
   double transfered = (lastPackNo*1000)/(1024*1024);
-  double trans_rate = (lastPackNo*1000*8)/(1000000*elapsed_all);
+  double trans_rate = ((lastPackNo*1000+lastPackDataSize)*8)/(1000000*elapsed_all);
   printf("Total Time: %f sec\nFile data were completely transfered, and %f Mbytes were successfully transfered.\n", elapsed_all, transfered);
   printf("The average transfer rate is: %f Mbits/sec\n", trans_rate);
 	  
