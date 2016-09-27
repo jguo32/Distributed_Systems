@@ -175,6 +175,11 @@ int main(int argc, char **argv) {
   }
 
   sendto_dbg_init(loss_rate);
+
+  struct timespec start_all, end_all, last_all; /*record the transfer time*/ 
+  double elapsed_all, elapsed_total;                        
+  clock_gettime(CLOCK_MONOTONIC, &start_all);
+  last_all = start_all;
   
 LOOP:
   while (1) {
@@ -283,6 +288,23 @@ LOOP:
 
         sendto_dbg(ss, send_buf, sizeof(send_buf), 0, (struct sockaddr *)&send_addr,
 		   sizeof(send_addr));
+
+	// printf("sendPackNo: %d\n", sendPackNo);
+	if (ack_buf[p] != 0 && ack_buf[p] % 100000000 == 0) {
+	  clock_gettime(CLOCK_MONOTONIC, &end_all);                   	 
+	  elapsed_all = (end_all.tv_sec - last_all.tv_sec);                  
+	  elapsed_all += (end_all.tv_nsec - last_all.tv_nsec) / 1000000000.0;
+
+	  elapsed_total = (end_all.tv_sec - start_all.tv_sec);                  
+	  elapsed_total += (end_all.tv_nsec - start_all.tv_nsec) / 1000000000.0;
+	  
+	  double transfered = ((sendPackNo+1)*1000)/(1024*1024);
+	  double trans_rate = (100*1024*1024*8)/(1000000*elapsed_all);
+	  printf("Time: %f sec passed.\n100Mbytes data were sent out, and %f Mbytes were successfully transfered.\n", elapsed_total, transfered);
+	  printf("The current average transfer rate is: %f Mbits/sec.\n\n", trans_rate);
+
+	  last_all = end_all;
+	}
       }
 
     } else if (status == SENDER_CLOSE_CONN) {
@@ -310,10 +332,12 @@ LOOP:
     struct timespec startTime, endTime;
     double totalTime, elapsedTime;
     clock_gettime(CLOCK_MONOTONIC, &startTime);
-
+    double lastDataSent = 0;
+    
     /* Init total time */
     totalTime = RECV_WAIT_TIME;
-
+    
+    
     while (1) {
 
       // printf("remaining time: %f\n", totalTime-elapsedTime);
@@ -390,8 +414,8 @@ LOOP:
 	      printf("ackbuf0: %d\n", ack_buf[0]);
 	      printf("ackbuf1: %d\n", ack_buf[1]);
 	      printf("ackbuf2: %d\n", ack_buf[2]);
-            printf("ackbuf3: %d\n", ack_buf[3]);
-            printf("ackbuf4: %d\n", ack_buf[4]);*/
+	      printf("ackbuf3: %d\n", ack_buf[3]);
+	      printf("ackbuf4: %d\n", ack_buf[4]);*/
 
             // continue;
           } else if (recv_msg.type == RTOS_CLOSE_CONN) {
@@ -434,8 +458,6 @@ LOOP:
 
       /* Compute how much data should be read */
       readLen = incre * PACKET_DATA_SIZE;
-
-      // printf("sendPackNo: %d\n", sendPackNo);
       
       if (sendPackNo == lastPackNo + 1) {
 	printf("lastPackNo: %d\n", lastPackNo);
@@ -456,6 +478,19 @@ LOOP:
 
   /* Call this once to initialize the coat routine */
   // sendto_dbg_init(rate);
+
+
+  clock_gettime(CLOCK_MONOTONIC, &end_all);                   	 
+  elapsed_all = (end_all.tv_sec - start_all.tv_sec);                  
+  elapsed_all += (end_all.tv_nsec - start_all.tv_nsec) / 1000000000.0;
+
+  double transfered = (lastPackNo*1000)/(1024*1024);
+  double trans_rate = ((lastPackNo*1000+lastPackDataSize)*8)/(1000000*elapsed_all);
+  printf("Total Time: %f sec\nFile data were completely transfered, and %f Mbytes were successfully transfered.\n", elapsed_all, transfered);
+  printf("The average transfer rate is: %f Mbits/sec\n", trans_rate);
+	  
+
+
 
   return 0;
 }
