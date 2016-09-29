@@ -2,50 +2,48 @@
 #include <netdb.h>
 #include <time.h>
 #include "net_include.h"
-#include "sendto_dbg.h"
 
 int main(int argc, char **argv) {
-  /* Variables for tcp transmission */
-  struct sockaddr_in host;
-  struct hostent h_ent, *p_h_ent;
-
-  char host_name[80];
+  /* Variables for file read */
   char *file_name;
   char *dest_file_name;
-  char my_name[NAME_LENGTH] = {'\0'};
-
-  int s;
-  int ret;
-  int bytes;
-  int mess_len;
-  char mess_buf[READ_BUF_SIZE];
-  char *neto_mess_ptr = &mess_buf[sizeof(mess_len)];
-
-  /* For file reading */
   FILE *fr;
+  
+  // char send_buf[sizeof(send_package[0])]; //send data buffer to receiver
+  char read_buf[PACKET_DATA_SIZE+1]; // read data buffer from file
+  int nread;      // the actual length of data read from file
 
-  /* Other parameters */
-  int loss_rate;
+  /* Variables for TCP transfer */
+  struct sockaddr_in host;
+  struct hostent h_ent;
+  struct hostent *p_h_ent;
+  char send_buf[PACKET_DATA_SIZE+2];
+  
+  char my_name[NAME_LENGTH] = {'\0'};
+  char host_name[NAME_LENGTH] = {'\0'}; // Host to send to
+
+  int ss;
+  int ret;
+  int finishedRead;
+
   char *token;
 
-  if (argc != 4) {
-    printf("Usage: t_ncp <loss_rate_percent> <source_file_name> "
+  if (argc != 3) {
+    printf("Usage: t_ncp <source_file_name> "
            "<dest_file_name>@<comp_name>\n");
     exit(0);
   }
 
   /* Parse the commandline parameters */
-  loss_rate = atoi(argv[1]);
-  file_name = argv[2];
+  file_name = argv[1];
 
-  token = strtok(argv[3], "@");
+  token = strtok(argv[2], "@");
   dest_file_name = (char *)malloc(strlen(token));
   strcpy(dest_file_name, token);
-  dest_file_name[strlen(token)] = '\0';
 
   token = strtok(NULL, "@");
   if (strlen(token) > NAME_LENGTH) {
-    printf("t_ncp: host name is too long!\n");
+    printf("ncp: host name is too long!\n");
     exit(1);
   }
   strcpy(host_name, token);
@@ -53,46 +51,92 @@ int main(int argc, char **argv) {
   gethostname(my_name, NAME_LENGTH);
   p_h_ent = gethostbyname(host_name);
   if (p_h_ent == NULL) {
-    printf("t_ncp: gethostbyname error.\n");
+    printf("ncp: gethostbyname error.\n");
     exit(1);
   }
 
   printf("Sending file from %s to %s @ %s.\n", my_name, dest_file_name,
          host_name);
 
-  s = socket(AF_INET, SOCK_STREAM, 0); /* Create a socket (TCP) */
-  if (s < 0) {
-    perror("Net_client: socket error");
+  /* Initialize the socket for sending files */
+  ss = socket(AF_INET, SOCK_STREAM, 0);
+  if (ss < 0) {
+    perror("ncp: socket");
     exit(1);
   }
 
+  host.sin_family = AF_INET;  
+  host.sin_port = htons(PORT);
+    
   memcpy(&h_ent, p_h_ent, sizeof(h_ent));
   memcpy(&host.sin_addr, h_ent.h_addr_list[0], sizeof(host.sin_addr));
 
-  ret = connect(s, (struct sockaddr *)&host, sizeof(host)); /* Connect! */
-  if (ret < 0) {
-    perror("Net_client: could not connect to server");
+  ret = connect(ss, (struct sockaddr *)&host, sizeof(host) ); /* Connect!*/
+  if ( ret < 0 ) {
+    perror( "Net_client: could not connect to server");
     exit(1);
   }
 
-    /* Open the source file for reading */
-    if((fr = fopen(argv[1], "r")) == NULL) {
-	        perror("fopen");
-		    exit(0);
-		      }
+  /* Open the source file for reading */
+  if ((fr = fopen(file_name, "r")) == NULL) {
+    perror("fopen");
+    exit(0);
+  }
+  printf("Opened %s for reading...\n", file_name);
 
-  for (;;) {
-    bytes = fread(neto_mess_ptr, 1, sizeof(mess_buf) - sizeof(mess_len), fr);
-    neto_mess_ptr[bytes] = 0;
-    mess_len = strlen(neto_mess_ptr) + sizeof(mess_len);
+  /* Init finished reading file */
+  finishedRead = -1;
 
-    if (bytes > 0) {
-      ret = send( s, mess_buf, mess_len, 0);
-      if (ret != mess_len) {
-        perror("t_ncp: error in sending");
-	exit(1);
-      }  
+  /* Send the file name */
+
+  int len = strlen(dest_file_name);
+  memcpy(send_buf+sizeof(len), dest_file_name, len);
+  char *neto = &read_buf[sizeof(len)];
+  neto[len] = 0;
+  len = len + sizeof(len);
+  memcpy(send_buf, &len, sizeof(len));
+  ret = send(ss, send_buf, len, 0);  
+
+  
+  while (1) {
+    len = 0;
+    
+    memset(read_buf, 0, PACKET_DATA_SIZE+1);
+    nread = fread(read_buf, 1, PACKET_DATA_SIZE, fr);
+
+    // printf("nread: %d\n", nread);
+    /* fread returns a short count either at EOF or when an error occurred
+     */
+    read_buf[nread] = '\0';
+    if (nread < PACKET_DATA_SIZE) {
+      if (feof(fr)) {
+	printf("nread: %d\n", nread);
+	printf("Finished reading data from files.\n");
+	printf("last time of read, data size: %d\n", nread);
+	finishedRead = 1;  
+      } else {
+	printf("An error occured...\n");
+	exit(0);
+      }
+    }
+
+    len = nread;
+    memcpy(send_buf+sizeof(len), read_buf, len);
+    // printf("len : %d\n", len);
+
+    neto[len] = 0;
+    len = len + sizeof(len);
+    memcpy(send_buf, &len, sizeof(len));
+
+    ret = send(ss, send_buf, len, 0);  
+	
+    if (finishedRead == 1) {
+      // tell the receiver that the file was complelely read
+      break;
     }
   }
+  /* Cleaup files */
+  fclose(fr);
+
   return 0;
 }
