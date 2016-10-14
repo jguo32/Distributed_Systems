@@ -97,6 +97,7 @@ int main(int argc, char **argv) {
   token = strtok(argv[3], "@");
   dest_file_name = (char *)malloc(strlen(token));
   strcpy(dest_file_name, token);
+  dest_file_name[strlen(token)] = '\0';
 
   token = strtok(NULL, "@");
   if (strlen(token) > NAME_LENGTH) {
