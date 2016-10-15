@@ -5,8 +5,11 @@ void printIP(int ip);
 
 int main(int argc, char **argv) {
   struct sockaddr_in recv_addr;
+  struct sockaddr_in recv_udp_addr;
   struct sockaddr_in send_addr;
-
+  struct sockaddr_in self_addr;
+  struct sockaddr_in next_addr;
+  
   struct hostent        h_ent;
   struct hostent        *p_h_ent;
   char                  my_name[NAME_LENGTH] = {'\0'};
@@ -17,7 +20,7 @@ int main(int argc, char **argv) {
   struct ip_mreq mreq;
   unsigned char ttl_val;
 
-  int ss, sr;
+  int ss, sr, ssudp, srudp;
   fd_set mask;
   fd_set dummy_mask, temp_mask;
   int bytes;
@@ -26,7 +29,8 @@ int main(int argc, char **argv) {
   char send_buf[80];
 
   int status;
-
+  int tokenNo;
+  
   /* Command line input parameters */
   int num_of_packets;
   int machine_index;
@@ -45,7 +49,9 @@ int main(int argc, char **argv) {
   loss_rate = atoi(argv[4]);
 
   status = WAIT_START_SIGNAL;
+  tokenNo = machine_index == 1 ? 0 : -1;
 
+  /* get host name and ip */
   gethostname(my_name, NAME_LENGTH );
   printf("My host name is %s.\n", my_name);
 
@@ -58,11 +64,11 @@ int main(int argc, char **argv) {
   memcpy( &h_ent, p_h_ent, sizeof(h_ent));
   memcpy( &my_ip, h_ent.h_addr_list[0], sizeof(my_ip) );
 
-  printf("My IP address is: %d.%d.%d.%d\n", (htonl(my_ip) & 0xff000000)>>24, 
-	 (htonl(my_ip) & 0x00ff0000)>>16,
-	 (htonl(my_ip) & 0x0000ff00)>>8,
-	 (htonl(my_ip) & 0x000000ff) );
-
+  printIP(my_ip);
+  self_addr.sin_family = AF_INET;
+  self_addr.sin_addr.s_addr = my_ip;
+  self_addr.sin_port = htons(PORT);
+  
   mcast_addr = 225 << 24 | 0 << 16 | 1 << 8 | 1; /* (225.0.1.1) */
 
   sr = socket(AF_INET, SOCK_DGRAM, 0); /* socket for receiving */
@@ -109,24 +115,63 @@ int main(int argc, char **argv) {
   send_addr.sin_addr.s_addr = htonl(mcast_addr); /* mcast address */
   send_addr.sin_port = htons(PORT);
 
+  ssudp = socket(AF_INET, SOCK_DGRAM, 0);
+  if (ssudp < 0) {
+    perror("socket error");
+    exit(1);
+  }
+
+  srudp = socket(AF_INET, SOCK_DGRAM, 0);
+  if (srudp < 0) {
+    perror("socket error");
+    exit(1);
+  }
+
+  recv_udp_addr.sin_family = AF_INET;
+  recv_udp_addr.sin_addr.s_addr = INADDR_ANY;
+  recv_udp_addr.sin_port = htons(PORT);
+
+  if (bind(srudp, (struct sockaddr *)&recv_udp_addr, sizeof(recv_udp_addr)) < 0) {
+    perror("bind error");
+    exit(1);
+  }
+  
   FD_ZERO(&mask);
   FD_ZERO(&dummy_mask);
   FD_SET(sr, &mask);
-// FD_SET((long)0, &mask); /* stdin */
-OUTERLOOP:
+  FD_SET(srudp, &mask);
+  // FD_SET((long)0, &mask); /* stdin */
+ OUTERLOOP:
   for (;;) {
-    if (status == RECEIVED_START_SIGNAL) {
-      struct INIT_MSG init_msg;
-      init_msg.msg.type = INIT_MCAST;
-      init_msg.machine_index = machine_index;
-      init_msg.addr = send_addr;
-      memcpy(send_buf, &init_msg, sizeof(init_msg));
-      sendto(ss, send_buf, sizeof(send_buf), 0, (struct sockaddr *)&send_addr,
-             sizeof(send_addr));
-      printIP(send_addr.sin_addr.s_addr);
+    //printf("status: %d\n", status);
+    if (status == RECEIVED_START_SIGNAL || status == CHECK_RECV_IP) {
+      if (status == RECEIVED_START_SIGNAL || machine_index == 10) {
+	struct INIT_MSG init_msg;
+	char init_buf[sizeof(init_msg)];
+	init_msg.msg.type = INIT_MCAST;
+	init_msg.machine_index = machine_index;
+	init_msg.addr = self_addr;
+	memcpy(init_buf, &init_msg, sizeof(init_msg));
+	sendto(ss, init_buf, sizeof(init_buf), 0,
+	       (struct sockaddr *)&send_addr,sizeof(send_addr));
+      }
+
+      if (status == CHECK_RECV_IP) {
+	//printIP(next_addr.sin_addr.s_addr);
+	struct CHECK_IP_RING_MSG check_ip_msg;
+	char check_ip_buf[sizeof(check_ip_msg)];
+	check_ip_msg.msg.type = TOKEN_RING;
+	check_ip_msg.ring_msg.no = tokenNo + 1;
+	check_ip_msg.ring_msg.type = CHECK_IP_RECEIVED;
+	memcpy(check_ip_buf, &check_ip_msg, sizeof(check_ip_msg));
+	sendto(ssudp, check_ip_buf, sizeof(check_ip_buf), 0,
+	       (struct sockaddr *)&next_addr,sizeof(next_addr));
+      }
+      
     } else if (status == DO_MCAST) {
 
     } else {
+      
     }
 
     // Receive msg packet
@@ -139,49 +184,74 @@ OUTERLOOP:
       } else {
 
       }
+      
       if (num > 0) {
         struct MSG recv_msg;
-        if (FD_ISSET(sr, &temp_mask)) {
+	if (FD_ISSET(srudp, &temp_mask)) {
+
+	  printf("get udp\n");
+	  
+        } else if (FD_ISSET(sr, &temp_mask)) {
           bytes = recv(sr, mess_buf, sizeof(mess_buf), 0);
 	  //mess_buf[bytes] = 0;
           memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
 	  
           if (recv_msg.type == START_MCAST) {
+	    
             printf("Machine %d received start_mcast msg.\n", machine_index);
             status = RECEIVED_START_SIGNAL;
-          } else if (status == RECEIVED_START_SIGNAL && recv_msg.type == INIT_MCAST) {
+	    
+          } else if (status == RECEIVED_START_SIGNAL &&
+		     recv_msg.type == INIT_MCAST) {
+	 
             struct INIT_MSG init_msg;
             memcpy(&init_msg, mess_buf, sizeof(init_msg));
 
             // Determine the index of next machine
-            int next = machine_index + 1;
-            if (next > num_of_machines) {
-              next = 1;
-            }
-	    printIP(init_msg.addr.sin_addr.s_addr);
-            if (init_msg.machine_index == next) {
-              printf("received next machine info: %d %ld\n", next,
-                     init_msg.addr.sin_addr.s_addr);
-	      status = DO_MCAST;
+            int next_index = (machine_index == num_of_machines ?
+			      1 :machine_index + 1);
+           
+	    // printIP(init_msg.addr.sin_addr.s_addr);
+            if (init_msg.machine_index == next_index) {
+              printf("Received next machine IP address.\n");
+	      printIP(init_msg.addr.sin_addr.s_addr);
+
+	      next_addr = init_msg.addr;
+	      
+	      /* pass token ring (for check) starts from machine 1 */
+	      if (machine_index == 1) {
+		status = CHECK_RECV_IP;
+	      }
             } else {
-              printf("irrelevant init packet from machine %d, msg type %c.\n", init_msg.machine_index, init_msg.msg.type);
+	      /*printf("irrelevant init packet from machine %d, msg type %c.\n",
+		init_msg.machine_index, init_msg.msg.type);*/
             }
           } else {
 
 	  }
-          goto OUTERLOOP;
-        } else if (FD_ISSET(0, &temp_mask)) {
-
-          // bytes = read(0, input_buf, sizeof(input_buf));
-          // input_buf[bytes] = 0;
-          // printf("there is an input: %s\n", input_buf);
-          // sendto(ss, input_buf, strlen(input_buf), 0,
-          //       (struct sockaddr *)&send_addr, sizeof(send_addr));
-        }
+	  goto OUTERLOOP;
+	} else if ((status == RECEIVED_START_SIGNAL ||
+		    status == CHECK_RECV_IP) &&
+		   recv_msg.type == TOKEN_RING) {
+	  printf("get token\n");
+	  struct RING_MSG ring_msg; 
+	  memcpy(&ring_msg, mess_buf, sizeof(ring_msg)); 
+	  if (ring_msg.type == CHECK_IP_RECEIVED) { 
+	    status = CHECK_RECV_IP; 
+	    
+	    struct CHECK_IP_RING_MSG check_ip_msg; 
+	    memcpy(&check_ip_msg, mess_buf, sizeof(check_ip_msg)); 
+	    if (tokenNo == -1 || 
+	   	tokenNo + num_of_machines == check_ip_msg.ring_msg.no) { 
+	      tokenNo = check_ip_msg.ring_msg.no; 
+	    } 
+	  } else if (ring_msg.type == MULTICAST_PACK) { 
+	    //status = 
+	  }
+	}
       }
     }
   }
-
   return 0;
 }
 
