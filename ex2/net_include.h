@@ -10,7 +10,8 @@
 
 #include <errno.h>
 
-#define PORT	     10580 
+#define PORT	     10580
+#define PORT_UDP     10270
 
 #define MAX_MESS_LEN 1400
 #define NAME_LENGTH 80
