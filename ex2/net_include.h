@@ -13,6 +13,7 @@
 #define PORT	     10580 
 
 #define MAX_MESS_LEN 1400
+#define NAME_LENGTH 80
 
 /* Type of packets */
 #define START_MCAST 's'  // Starting signal sent by start_mcast

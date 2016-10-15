@@ -1,9 +1,17 @@
+#include <arpa/inet.h>
 #include "net_include.h"
 
+void printIP(int ip);
+
 int main(int argc, char **argv) {
-  struct sockaddr_in name;
+  struct sockaddr_in recv_addr;
   struct sockaddr_in send_addr;
 
+  struct hostent        h_ent;
+  struct hostent        *p_h_ent;
+  char                  my_name[NAME_LENGTH] = {'\0'};
+  int                   my_ip;
+  
   int mcast_addr;
 
   struct ip_mreq mreq;
@@ -38,6 +46,23 @@ int main(int argc, char **argv) {
 
   status = WAIT_START_SIGNAL;
 
+  gethostname(my_name, NAME_LENGTH );
+  printf("My host name is %s.\n", my_name);
+
+  p_h_ent = gethostbyname(my_name);
+  if ( p_h_ent == NULL ) {
+    printf("myip: gethostbyname error.\n");
+    exit(1);
+  }
+
+  memcpy( &h_ent, p_h_ent, sizeof(h_ent));
+  memcpy( &my_ip, h_ent.h_addr_list[0], sizeof(my_ip) );
+
+  printf("My IP address is: %d.%d.%d.%d\n", (htonl(my_ip) & 0xff000000)>>24, 
+	 (htonl(my_ip) & 0x00ff0000)>>16,
+	 (htonl(my_ip) & 0x0000ff00)>>8,
+	 (htonl(my_ip) & 0x000000ff) );
+
   mcast_addr = 225 << 24 | 0 << 16 | 1 << 8 | 1; /* (225.0.1.1) */
 
   sr = socket(AF_INET, SOCK_DGRAM, 0); /* socket for receiving */
@@ -46,11 +71,11 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  name.sin_family = AF_INET;
-  name.sin_addr.s_addr = INADDR_ANY;
-  name.sin_port = htons(PORT);
+  recv_addr.sin_family = AF_INET;
+  recv_addr.sin_addr.s_addr = INADDR_ANY;
+  recv_addr.sin_port = htons(PORT);
 
-  if (bind(sr, (struct sockaddr *)&name, sizeof(name)) < 0) {
+  if (bind(sr, (struct sockaddr *)&recv_addr, sizeof(recv_addr)) < 0) {
     perror("Mcast: bind");
     exit(1);
   }
@@ -66,6 +91,7 @@ int main(int argc, char **argv) {
   }
 
   ss = socket(AF_INET, SOCK_DGRAM, 0); /* Socket for sending */
+  
   if (ss < 0) {
     perror("Mcast: socket");
     exit(1);
@@ -95,8 +121,9 @@ OUTERLOOP:
       init_msg.machine_index = machine_index;
       init_msg.addr = send_addr;
       memcpy(send_buf, &init_msg, sizeof(init_msg));
-      sendto(ss, send_buf, strlen(send_buf), 0, (struct sockaddr *)&send_addr,
+      sendto(ss, send_buf, sizeof(send_buf), 0, (struct sockaddr *)&send_addr,
              sizeof(send_addr));
+      printIP(send_addr.sin_addr.s_addr);
     } else if (status == DO_MCAST) {
 
     } else {
@@ -116,7 +143,7 @@ OUTERLOOP:
         struct MSG recv_msg;
         if (FD_ISSET(sr, &temp_mask)) {
           bytes = recv(sr, mess_buf, sizeof(mess_buf), 0);
-          mess_buf[bytes] = 0;
+	  //mess_buf[bytes] = 0;
           memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
 	  
           if (recv_msg.type == START_MCAST) {
@@ -131,6 +158,7 @@ OUTERLOOP:
             if (next > num_of_machines) {
               next = 1;
             }
+	    printIP(init_msg.addr.sin_addr.s_addr);
             if (init_msg.machine_index == next) {
               printf("received next machine info: %d %ld\n", next,
                      init_msg.addr.sin_addr.s_addr);
@@ -155,4 +183,11 @@ OUTERLOOP:
   }
 
   return 0;
+}
+
+void printIP(int ip) {
+  printf("IP address is: %d.%d.%d.%d\n", (htonl(ip) & 0xff000000)>>24, 
+	 (htonl(ip) & 0x00ff0000)>>16,
+	 (htonl(ip) & 0x0000ff00)>>8,
+	 (htonl(ip) & 0x000000ff) );
 }
