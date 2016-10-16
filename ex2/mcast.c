@@ -1,4 +1,16 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <netinet/in.h> 
+#include <netdb.h>
 #include <arpa/inet.h>
+#include <unistd.h>
+#include <time.h>
+#include <errno.h>
 #include "net_include.h"
 
 void printIP(int ip);
@@ -26,12 +38,15 @@ int main(int argc, char **argv) {
   int ss_uni, sr_uni;
   fd_set mask;
   fd_set dummy_mask, temp_mask;
+  struct timeval timeout;
+  
   int bytes;
   int num;
   char mess_buf[MAX_MESS_LEN];
 
   int status;
   int tokenNo;
+  int haveToken = 0;
   
   /* Command line input parameters */
   int num_of_packets;
@@ -70,7 +85,7 @@ int main(int argc, char **argv) {
   /* get local ip addr*/
   self_uni_addr.sin_family = AF_INET;
   self_uni_addr.sin_addr.s_addr = my_ip;
-  self_uni_addr.sin_port = htons(PORT_UDP);
+  self_uni_addr.sin_port = htons(PORT_UNI_CAST);
 
   /* init unicast send socket */
   ss_uni = socket(AF_INET, SOCK_DGRAM, 0);
@@ -89,7 +104,7 @@ int main(int argc, char **argv) {
   /* init unicast recv addr */
   recv_uni_addr.sin_family = AF_INET;
   recv_uni_addr.sin_addr.s_addr = INADDR_ANY;
-  recv_uni_addr.sin_port = htons(PORT_UDP);
+  recv_uni_addr.sin_port = htons(PORT_UNI_CAST);
 
   if (bind(sr_uni, (struct sockaddr *)&recv_uni_addr, sizeof(recv_uni_addr)) < 0) {
     perror("bind error");
@@ -108,7 +123,7 @@ int main(int argc, char **argv) {
   /* init multicast recv addr */
   recv_multi_addr.sin_family = AF_INET;
   recv_multi_addr.sin_addr.s_addr = INADDR_ANY;
-  recv_multi_addr.sin_port = htons(PORT);
+  recv_multi_addr.sin_port = htons(PORT_MULTI_CAST);
 
   if (bind(sr_multi, (struct sockaddr *)&recv_multi_addr, sizeof(recv_multi_addr)) < 0) {
     perror("Mcast: bind");
@@ -144,7 +159,7 @@ int main(int argc, char **argv) {
   /* init multicast send addr */
   send_multi_addr.sin_family = AF_INET;
   send_multi_addr.sin_addr.s_addr = htonl(mcast_addr); /* mcast address */
-  send_multi_addr.sin_port = htons(PORT);
+  send_multi_addr.sin_port = htons(PORT_MULTI_CAST);
   
   FD_ZERO(&mask);
   FD_ZERO(&dummy_mask);
@@ -152,19 +167,41 @@ int main(int argc, char **argv) {
   FD_SET(sr_uni, &mask);
   // FD_SET((long)0, &mask); /* stdin */
 
+  /*
   printf("ss_multi: %d\n", ss_multi);
   printf("sr_multi: %d\n", sr_multi);
   printf("ss_uni: %d\n", ss_uni);
   printf("sr_uni: %d\n", sr_uni);
+  */
+  printf("Machine Index: %d\n",machine_index);
 
+  int lastStatus = status;
 
  OUTERLOOP:
   for (;;) {
 
-    printf("status: %d\n", status);
+    if (lastStatus != status) {
+      printf("status: %d\n", status);
+      lastStatus = status;
+    }
 
-    if (status == RECEIVED_START_SIGNAL || status == CHECK_RECV_IP) {
-      if (status == RECEIVED_START_SIGNAL || machine_index == 10) {
+    if (status == RECEIVED_START_SIGNAL) {
+
+      struct INIT_MSG init_msg;
+      char init_buf[sizeof(init_msg)];
+      init_msg.msg.type = INIT_MCAST;
+      init_msg.machine_index = machine_index;
+      init_msg.addr = self_uni_addr;
+      memcpy(init_buf, &init_msg, sizeof(init_msg));
+      sendto(ss_multi, init_buf, sizeof(init_buf), 0,
+	     (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
+        
+    } else if (status == CHECK_RECV_IP) {
+
+      /* machine 1 will keep multicast it's ip addr until 
+	 it receives token ring from last machine */
+      
+      if (machine_index == 1) {
 	struct INIT_MSG init_msg;
 	char init_buf[sizeof(init_msg)];
 	init_msg.msg.type = INIT_MCAST;
@@ -174,117 +211,187 @@ int main(int argc, char **argv) {
 	sendto(ss_multi, init_buf, sizeof(init_buf), 0,
 	       (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
       }
+    
+      //printIP(send_uni_addr.sin_addr.s_addr);
+      struct CHECK_IP_RING_MSG check_ip_msg;
+      char check_ip_buf[sizeof(check_ip_msg)];
+      check_ip_msg.ring_msg.msg.type = TOKEN_RING;
+      check_ip_msg.ring_msg.no = tokenNo + 1;
+      check_ip_msg.ring_msg.type = CHECK_IP_RECEIVED;
+      memcpy(check_ip_buf, &check_ip_msg, sizeof(check_ip_msg));
+      sendto(ss_uni, check_ip_buf, sizeof(check_ip_buf), 0,
+	     (struct sockaddr *)&send_uni_addr,sizeof(send_uni_addr));
 
-      if (status == CHECK_RECV_IP) {
-	//printIP(next_addr.sin_addr.s_addr);
-	struct CHECK_IP_RING_MSG check_ip_msg;
-	char check_ip_buf[sizeof(check_ip_msg)];
-	check_ip_msg.msg.type = TOKEN_RING;
-	check_ip_msg.ring_msg.no = tokenNo + 1;
-	check_ip_msg.ring_msg.type = CHECK_IP_RECEIVED;
-	memcpy(check_ip_buf, &check_ip_msg, sizeof(check_ip_msg));
-	sendto(ss_uni, check_ip_buf, sizeof(check_ip_buf), 0,
-	       (struct sockaddr *)&send_uni_addr,sizeof(send_uni_addr));
-      }
-      
+      tokenNo = machine_index == 1 ? 0 : -1;
+    
     } else if (status == DO_MCAST) {
 
+      if (haveToken) {
+      	struct MULTI_CAST_MSG multi_cast_msg;
+	char multi_cast_buf[sizeof(multi_cast_msg)];
+	multi_cast_msg.msg.type = MCAST;
+
+	/* TO-DO: multicast content and the nack, update related parameter*/
+	memcpy(multi_cast_buf, &multi_cast_msg, sizeof(multi_cast_msg));
+
+	/*
+	  sendto(ss_multi, multi_cast_buf, sizeof(multi_cast_buf), 0,
+	  (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
+	*/
+
+	
+	
+	//haveToken = 0;
+      }
     } else {
       
     }
 
     // Receive msg packet
+    struct timespec startTime, endTime;
+    double totalTime, elapsedTime;
+    clock_gettime(CLOCK_MONOTONIC, &startTime);
+
+    /* Init total time */
+    totalTime = RECV_WAIT_TIME;
+
     for (;;) {
 
+      timeout.tv_sec = 0;
+      timeout.tv_usec = (totalTime - elapsedTime) * 1000000;
+      num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
+      
       temp_mask = mask;
+      
       if (status == WAIT_START_SIGNAL) {
-        num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, NULL);
-      } else if (status == RECEIVED_START_SIGNAL) {
-        num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, NULL);
+	num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, NULL);
       } else {
-
+	num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
       }
+
       
       if (num > 0) {
+
+	/* check if the message from uni cast */
 	if (FD_ISSET(sr_uni, &temp_mask)) {
 
 	  struct MSG recv_msg;	  	  
 	  bytes = recv(sr_uni, mess_buf, sizeof(mess_buf), 0);
-	  //mess_buf[bytes] = 0;
-          memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
-	  printf("unicast, type:%c\n", recv_msg.type);
+	  // mess_buf[bytes] = 0;
+	  memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
+	  // printf("unicast, type:%c\n", recv_msg.type);
 
-	  if ((status == RECEIVED_START_SIGNAL ||
-	       status == CHECK_RECV_IP) && recv_msg.type == TOKEN_RING) {
-	  
-	    printf("get token\n");
+	  if (recv_msg.type == TOKEN_RING) {
+
 	    struct RING_MSG ring_msg; 
 	    memcpy(&ring_msg, mess_buf, sizeof(ring_msg));
-	  
-	  
-	    if (ring_msg.type == CHECK_IP_RECEIVED) { 
-	      status = CHECK_RECV_IP; 
+
+	    if (ring_msg.type == CHECK_IP_RECEIVED) {
+	      
+	      if (status == RECEIVED_START_SIGNAL || status == CHECK_RECV_IP) {
 	    
-	      struct CHECK_IP_RING_MSG check_ip_msg; 
-	      memcpy(&check_ip_msg, mess_buf, sizeof(check_ip_msg)); 
-	      if (tokenNo == -1 || 
-		  tokenNo + num_of_machines == check_ip_msg.ring_msg.no) { 
-		tokenNo = check_ip_msg.ring_msg.no; 
+		// printf("get token, type:%c\n", ring_msg.type);
+		printf("get check receive ip token, no:%d\n", ring_msg.no);
+		//return;
+		status = CHECK_RECV_IP; 
+	    
+		struct CHECK_IP_RING_MSG check_ip_msg; 
+		memcpy(&check_ip_msg, mess_buf, sizeof(check_ip_msg));
+		
+		if (tokenNo == -1 || 
+		    tokenNo + num_of_machines == check_ip_msg.ring_msg.no) {
+		  if (machine_index == 1) {
+		    /* check ip token pass around */
+		    printf("machine 1 start to perform multicast,\n");
+		    status = DO_MCAST;
+		    haveToken = 1;
+		  } else {
+		    tokenNo = check_ip_msg.ring_msg.no;
+		  }
+		} 	    
 	      } 
-	    
-	    } else if (ring_msg.type == MULTICAST_PACK) { 
-	      //status = 
-	  
+	    } else if (ring_msg.type == PASS_PACK) {
+	      /* get token ring for permission of multicast */
+	      printf("get multicast token, no:%d\n", ring_msg.no);
+	      if (status == CHECK_RECV_IP || status == DO_MCAST) {
+		status = DO_MCAST;
+	      }
+
+	      if (status == DO_MCAST) {
+		/* TO-DO, check local ura, then set if it owns the permission */
+
+	      }
+	      
 	    }
-	  }
-       
-	  
-	  goto OUTERLOOP;
-	  
+	    
+	  } 
+
+	  /* check if the meesage from multicast */
 	} else if (FD_ISSET(sr_multi, &temp_mask)) {
 
 	  struct MSG recv_msg;	  
 	  bytes = recv(sr_multi, mess_buf, sizeof(mess_buf), 0);
 	  //mess_buf[bytes] = 0;
 	  memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
-	  printf("multicast, type:%c\n", recv_msg.type);
+	  //printf("multicast, type:%c\n", recv_msg.type);
 	  
 	  if (recv_msg.type == START_MCAST) {
 	    
 	    printf("Machine %d received start_mcast msg.\n", machine_index);
 	    status = RECEIVED_START_SIGNAL;
 	    
-	  } else if (status == RECEIVED_START_SIGNAL &&
-		     recv_msg.type == INIT_MCAST) {
-	 
-	    struct INIT_MSG init_msg;
-	    memcpy(&init_msg, mess_buf, sizeof(init_msg));
+	  } else if (recv_msg.type == INIT_MCAST) {
 
-	    // Determine the index of next machine
-	    int next_index = (machine_index == num_of_machines ?
-			      1 :machine_index + 1);
+	    if (status == RECEIVED_START_SIGNAL) {
+	      struct INIT_MSG init_msg;
+	      memcpy(&init_msg, mess_buf, sizeof(init_msg));
+
+	      // Determine the index of next machine
+	      int next_index = (machine_index == num_of_machines ?
+				1 :machine_index + 1);
            
-	    // printIP(init_msg.addr.sin_addr.s_addr);
-	    if (init_msg.machine_index == next_index) {
-	      printf("Received next machine IP address.\n");
-	      printIP(init_msg.addr.sin_addr.s_addr);
+	      // printIP(init_msg.addr.sin_addr.s_addr);
+	      if (init_msg.machine_index == next_index) {
+		printf("Received next machine IP address.\n");
+		printIP(init_msg.addr.sin_addr.s_addr);
 
-	      send_uni_addr = init_msg.addr;
+		send_uni_addr = init_msg.addr;
 	      
-	      /* pass token ring (for check) starts from machine 1 */
-	      if (machine_index == 1) {
-		status = CHECK_RECV_IP;
+		/* pass token ring (for check) starts from machine 1 */
+		if (machine_index == 1) {
+		  status = CHECK_RECV_IP;
+		}
+	      } else {
+		/*printf("irrelevant init packet from machine %d, msg type %c.\n",
+		  init_msg.machine_index, init_msg.msg.type);*/
 	      }
-	    } else {
-	      /*printf("irrelevant init packet from machine %d, msg type %c.\n",
-		init_msg.machine_index, init_msg.msg.type);*/
 	    }
-	  } else {
+	    
+	  } else if (recv_msg.type == MCAST) {
 
+	    struct MULTI_CAST_MSG multi_cast_msg; 
+	    memcpy(&multi_cast_msg, mess_buf, sizeof(multi_cast_msg));
+	   	    
+
+	    if (status == CHECK_RECV_IP) {
+	      status = DO_MCAST;
+	    }
+
+	    if (status == DO_MCAST) {
+	      /* TO_DO: save message data */
+	    }
+	    
 	  }
-	  goto OUTERLOOP;
-	} 
+	}	
       }
+
+      clock_gettime(CLOCK_MONOTONIC, &endTime);
+      elapsedTime = (endTime.tv_sec - startTime.tv_sec);
+      elapsedTime += (endTime.tv_nsec - startTime.tv_nsec) / 1000000000.0;
+
+      if (elapsedTime > totalTime)
+	break;
+      
     }
   }
   return 0;
