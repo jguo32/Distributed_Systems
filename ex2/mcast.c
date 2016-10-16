@@ -177,9 +177,16 @@ int main(int argc, char **argv) {
 
   int lastStatus = status;
 
- OUTERLOOP:
-  for (;;) {
+  struct timespec tokenStartTime, tokenEndTime;
+  double tokenTotalTime, tokenElapsedTime;
+  tokenTotalTime = tokenElapsedTime = TOKEN_PASS_TIME;
+  
+  struct timespec recvStartTime, recvEndTime;
+  double recvTotalTime, recvElapsedTime;
+  recvTotalTime = TOKEN_PASS_TIME;
 
+  for (;;) {
+    
     if (lastStatus != status) {
       printf("status: %d\n", status);
       lastStatus = status;
@@ -211,7 +218,7 @@ int main(int argc, char **argv) {
 	sendto(ss_multi, init_buf, sizeof(init_buf), 0,
 	       (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
       }
-    
+
       //printIP(send_uni_addr.sin_addr.s_addr);
       struct CHECK_IP_RING_MSG check_ip_msg;
       char check_ip_buf[sizeof(check_ip_msg)];
@@ -221,8 +228,6 @@ int main(int argc, char **argv) {
       memcpy(check_ip_buf, &check_ip_msg, sizeof(check_ip_msg));
       sendto(ss_uni, check_ip_buf, sizeof(check_ip_buf), 0,
 	     (struct sockaddr *)&send_uni_addr,sizeof(send_uni_addr));
-
-      tokenNo = machine_index == 1 ? 0 : -1;
     
     } else if (status == DO_MCAST) {
 
@@ -239,26 +244,59 @@ int main(int argc, char **argv) {
 	  (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
 	*/
 
-	
+	// printf("sent out token\n");
+	struct MULTI_CAST_RING_MSG multi_cast_ring_msg;
+	char multi_cast_ring_buf[sizeof(multi_cast_ring_msg)];
+	multi_cast_ring_msg.ring_msg.msg.type = TOKEN_RING;
+	multi_cast_ring_msg.ring_msg.no = tokenNo + 1;
+	multi_cast_ring_msg.ring_msg.type = PASS_PACK;
+	memcpy(multi_cast_ring_buf, &multi_cast_ring_msg,
+	       sizeof(multi_cast_ring_msg));
+	sendto(ss_uni, multi_cast_ring_buf, sizeof(multi_cast_ring_buf), 0,
+	       (struct sockaddr *)&send_uni_addr,sizeof(send_uni_addr));
 	
 	//haveToken = 0;
+      } else {
+	/* check if time out, if it does, resend token */
+
+	/* check timeout first */
+	clock_gettime(CLOCK_MONOTONIC, &tokenEndTime);
+	tokenElapsedTime = (tokenEndTime.tv_sec - tokenStartTime.tv_sec);
+	tokenElapsedTime += (tokenEndTime.tv_nsec - tokenStartTime.tv_nsec) / 1000000000.0;
+
+	if (tokenElapsedTime > tokenTotalTime) {
+
+	  /* resend current token */
+	  
+	  struct MULTI_CAST_RING_MSG multi_cast_ring_msg;
+	  char multi_cast_ring_buf[sizeof(multi_cast_ring_msg)];
+	  multi_cast_ring_msg.ring_msg.msg.type = TOKEN_RING;
+	  multi_cast_ring_msg.ring_msg.no = tokenNo + 1;
+	  multi_cast_ring_msg.ring_msg.type = PASS_PACK;
+	  memcpy(multi_cast_ring_buf, &multi_cast_ring_msg,
+		 sizeof(multi_cast_ring_msg));
+	  sendto(ss_uni, multi_cast_ring_buf, sizeof(multi_cast_ring_buf), 0,
+		 (struct sockaddr *)&send_uni_addr,sizeof(send_uni_addr));
+
+	  /* reset total time for pass token */
+	  tokenNo = machine_index == 1 ? 0 : -1;
+	  tokenElapsedTime = 0.0;
+	  clock_gettime(CLOCK_MONOTONIC, &tokenStartTime);
+	}
+      
       }
     } else {
       
     }
 
     // Receive msg packet
-    struct timespec startTime, endTime;
-    double totalTime, elapsedTime;
-    clock_gettime(CLOCK_MONOTONIC, &startTime);
-
-    /* Init total time */
-    totalTime = RECV_WAIT_TIME;
-
+    recvElapsedTime = 0.0;
+    clock_gettime(CLOCK_MONOTONIC, &recvStartTime);
+    
     for (;;) {
 
       timeout.tv_sec = 0;
-      timeout.tv_usec = (totalTime - elapsedTime) * 1000000;
+      timeout.tv_usec = (recvTotalTime - recvElapsedTime) * 1000000;
       num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
       
       temp_mask = mask;
@@ -279,7 +317,7 @@ int main(int argc, char **argv) {
 	  bytes = recv(sr_uni, mess_buf, sizeof(mess_buf), 0);
 	  // mess_buf[bytes] = 0;
 	  memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
-	  // printf("unicast, type:%c\n", recv_msg.type);
+	  printf("unicast, type:%c\n", recv_msg.type);
 
 	  if (recv_msg.type == TOKEN_RING) {
 
@@ -385,11 +423,11 @@ int main(int argc, char **argv) {
 	}	
       }
 
-      clock_gettime(CLOCK_MONOTONIC, &endTime);
-      elapsedTime = (endTime.tv_sec - startTime.tv_sec);
-      elapsedTime += (endTime.tv_nsec - startTime.tv_nsec) / 1000000000.0;
+      clock_gettime(CLOCK_MONOTONIC, &recvEndTime);
+      recvElapsedTime = (recvEndTime.tv_sec - recvStartTime.tv_sec);
+      recvElapsedTime += (recvEndTime.tv_nsec - recvStartTime.tv_nsec) / 1000000000.0;
 
-      if (elapsedTime > totalTime)
+      if (recvElapsedTime > recvTotalTime)
 	break;
       
     }

@@ -27,7 +27,7 @@
 
 /* Type of ring message type */
 #define CHECK_IP_RECEIVED 'c'// Check if machine got the IP address of next one
-#define PASS_PACK 'm' //multi-cast package
+#define PASS_PACK         'p' //multi-cast package
 
 /* Status number for mcast machines */
 #define WAIT_START_SIGNAL 0
@@ -36,7 +36,7 @@
 #define DO_MCAST 4
 
 #define RECV_WAIT_TIME 0.001
-
+#define TOKEN_PASS_TIME 0.01
 
 struct MSG {
   char type;
