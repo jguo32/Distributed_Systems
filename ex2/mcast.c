@@ -61,6 +61,8 @@ int main(int argc, char **argv) {
   struct MULTI_CAST_RING_MSG multi_cast_ring_msg;
   struct MULTI_CAST_CONTENT recvData[RECV_CONTENT_LEN];
   int recvDataCheck[RECV_CONTENT_LEN];
+
+  FILE *fw;
   
   /* create random number generator */
   time_t t;
@@ -83,6 +85,16 @@ int main(int argc, char **argv) {
   num_of_machines = atoi(argv[3]);
   loss_rate = atoi(argv[4]);
 
+  /* init file */
+  char file_name[20];
+  sprintf(file_name, "%d.out", machine_index);
+  printf("open file: %s\n", file_name);
+  
+  if ((fw = fopen(file_name, "w")) == NULL) {
+    perror("fopen error");
+    exit(0);
+  }
+  
   /* init token ring */
 
   tokenNo = machine_index == 1 ? 0 : -1; /* only use for check ip */
@@ -101,7 +113,7 @@ int main(int argc, char **argv) {
     multi_cast_ring_msg.ring_msg.no = 1;
     multi_cast_ring_msg.ring_msg.type = PASS_PACK;
 
-    local_aru = multi_cast_ring_msg.aru;
+    // local_aru = multi_cast_ring_msg.aru;
     
   } else {
     multi_cast_ring_msg.aru = 0;
@@ -538,8 +550,14 @@ int main(int argc, char **argv) {
 	      /* move aru */
 	      while (recvDataCheck[local_aru - clear_times * WRITE_THRESHOLD] == 1) {
 		/* write data to file */
+		struct MULTI_CAST_CONTENT content = recvData[local_aru - clear_times * WRITE_THRESHOLD];
+		fprintf(fw, "%2d, %8d, %8d\n", content.machine_index,
+			content.packet_index, content.rand_number);
+
 		local_aru ++;
 	      }
+
+	      printf("current local_aru: %d\n", local_aru);
 	    }
 	    
 	  }
@@ -554,9 +572,21 @@ int main(int argc, char **argv) {
 	break;
     }
 
-    //TO-DO: check if clear first 1000 data
+    // check if clear first 1000 data
+    if (safe_aru > WRITE_THRESHOLD) {
+      clear_times ++;
+      memcpy(recvData, recvData + WRITE_THRESHOLD,
+	     (RECV_CONTENT_LEN - WRITE_THRESHOLD) * sizeof(struct MULTI_CAST_CONTENT));
+      memset(recvData + (RECV_CONTENT_LEN - WRITE_THRESHOLD), 0,
+	      WRITE_THRESHOLD * sizeof(struct MULTI_CAST_CONTENT));
+    }
     
+    if (local_aru >= 100)
+      break;
   }
+
+  fclose(fw);
+  
   return 0;
 }
 
