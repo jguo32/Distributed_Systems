@@ -18,6 +18,13 @@
 
 #define MAX_MESS_LEN 1400
 #define NAME_LENGTH 80
+#define DUMMY_DATA_LENGTH 1300
+#define NACK_LIST_LEN 1000
+#define SEND_DATA_WIN_SIZE 10
+#define WRITE_THRESHOLD 1000
+#define RECV_CONTENT_LEN WRITE_THRESHOLD*3
+
+#define RAND_MAX_NUM 1000000
 
 /* Type of packets */
 #define START_MCAST 's'  // Starting signal sent by start_mcast
@@ -26,8 +33,8 @@
 #define TOKEN_RING  't'  // Transfer token ring
 
 /* Type of ring message type */
-#define CHECK_IP_RECEIVED 'c'// Check if machine got the IP address of next one
-#define PASS_PACK         'p' //multi-cast package
+#define CHECK_IP_RECEIVED 'c' // Check if machine got the IP address of next one
+#define PASS_PACK         'p' // multi-cast package
 
 /* Status number for mcast machines */
 #define WAIT_START_SIGNAL 0
@@ -52,8 +59,16 @@ struct INIT_MSG {
   struct sockaddr_in addr;
 };
 
+struct MULTI_CAST_CONTENT {
+  int machine_index;
+  int packet_index;
+  int rand_number;
+};
+
 struct MULTI_CAST_MSG {
   struct MSG msg;
+  struct MULTI_CAST_CONTENT content;
+  char dummyData[DUMMY_DATA_LENGTH];
 };
 
 struct RING_MSG {
@@ -68,4 +83,8 @@ struct CHECK_IP_RING_MSG {
 
 struct MULTI_CAST_RING_MSG {
   struct RING_MSG ring_msg;
+  int seq;
+  int aru;
+  int machine_index; /* the machine that lower the aru in token */
+  int nack_list[NACK_LIST_LEN];
 };
