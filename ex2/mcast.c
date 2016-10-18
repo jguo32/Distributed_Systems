@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
   char                  my_name[NAME_LENGTH] = {'\0'};
   int                   my_ip;
   
-  int mcast_addr;
+  int mcast_addr; 
 
   struct ip_mreq mreq;
   unsigned char ttl_val;
@@ -54,7 +54,8 @@ int main(int argc, char **argv) {
   int safe_aru = 0;
   int send_seq = 0;
   int sent_pack_num = 0;
-
+  int send_pack_nums[MAX_MACHINE_NUM];
+    
   int clear_times = 0;
 
   struct MULTI_CAST_RING_MSG last_token_ring;
@@ -94,6 +95,8 @@ int main(int argc, char **argv) {
     perror("fopen error");
     exit(0);
   }
+
+  memset(send_pack_nums, -1, MAX_MACHINE_NUM * sizeof(int));
   
   /* init token ring */
 
@@ -104,10 +107,13 @@ int main(int argc, char **argv) {
   multi_cast_ring_msg.ring_msg.no = 0;
   
   if (machine_index == 1) {
-
+    send_pack_nums[0] = num_of_packets;
+      
     multi_cast_ring_msg.aru = MIN(num_of_packets, SEND_DATA_WIN_SIZE);
     multi_cast_ring_msg.seq = multi_cast_ring_msg.aru;
     multi_cast_ring_msg.machine_index = -1;
+    memset(multi_cast_ring_msg.nack_list, -1, NACK_LIST_LEN * sizeof(int));
+    memcpy(multi_cast_ring_msg.send_pack_num, send_pack_nums, MAX_MACHINE_NUM * sizeof(int));
 	
     multi_cast_ring_msg.ring_msg.msg.type = TOKEN_RING;
     multi_cast_ring_msg.ring_msg.no = 1;
@@ -242,6 +248,8 @@ int main(int argc, char **argv) {
   recvTotalTime = TOKEN_PASS_TIME;
 
   for (;;) {
+
+    printf("~~~~~~~~\n");
     
     if (lastStatus != status) {
       printf("status: %d\n", status);
@@ -291,6 +299,8 @@ int main(int argc, char **argv) {
 
 	/* multicast its content */
 	sent_pack_num += multi_cast_ring_msg.seq - send_seq;
+	printf("send packets from %d to %d, %d packets sent out\n",
+	       send_seq, multi_cast_ring_msg.seq, sent_pack_num);
 	int i = send_seq;
 	for (; i<multi_cast_ring_msg.seq; i++) {
 	  struct MULTI_CAST_CONTENT multi_cast_content;
@@ -314,13 +324,65 @@ int main(int argc, char **argv) {
 		 (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
 	}
 
-	/* TO-DO: multicast the packet in nack list (if machine has it) */ 
-	   
-		
-	/* TO-DO: add the nack to nack list, update related parameter
+	/*  multicast the packet in nack list (if machine has it) */ 
+
+	int nack_list[NACK_LIST_LEN];
+	memset(nack_list, -1, NACK_LIST_LEN * sizeof(int));
+	
+	i = 0;
+	int j = 0;
+	while (i < NACK_LIST_LEN && multi_cast_ring_msg.nack_list[i] != -1) {
+	  int nack = multi_cast_ring_msg.nack_list[i];
+	  if (nack < safe_aru) {
+	    i ++;
+	    continue;
+	  }
+
+	  /* copy the new nack (filter out unecessary nacks which smaller than safe_aru */
+	  nack_list[j++] = nack;
+
+	  int pos = nack - clear_times * WRITE_THRESHOLD;
+	  if (recvDataCheck[pos] == 1) {
+	    /* machine has this data */
+
+	    struct MULTI_CAST_MSG multi_cast_msg;
+	    char multi_cast_buf[sizeof(multi_cast_msg)];
+	    multi_cast_msg.msg.type = MCAST;
+	    multi_cast_msg.content = recvData[pos];
+
+	    /* multicast content */
+	    memcpy(multi_cast_buf, &multi_cast_msg, sizeof(multi_cast_msg));
+	    sendto(ss_multi, multi_cast_buf, sizeof(multi_cast_buf), 0,
+		   (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
+
+	  }
+	  
+	  i ++;
+	}
+			
+	/* add the nack to nack list, update related parameter
 	   from local_aru to multi_cast_ring_msg.seq */
+	i = local_aru;
+	for (; i < multi_cast_ring_msg.seq; i ++) {
+	  int pos = i - clear_times * WRITE_THRESHOLD;
+	  if (recvDataCheck[i] != 1) {
+	    nack_list[j++] = i;
+	  }
+	}
+
+	memcpy(multi_cast_ring_msg.nack_list, nack_list, NACK_LIST_LEN * sizeof(int));
+	multi_cast_ring_msg.send_pack_num[machine_index-1] = num_of_packets;
 	// printf("sent out token\n");
 
+	/* test */
+	/*
+	printf("send token\n");
+	i = 0;
+	for (; i<num_of_machines; i++) {
+	  int num = multi_cast_ring_msg.send_pack_num[i];
+	  printf("num : %d\n", num);
+	}*/
+	
 	char multi_cast_ring_buf[sizeof(multi_cast_ring_msg)];
 
     	memcpy(multi_cast_ring_buf, &multi_cast_ring_msg,
@@ -329,7 +391,7 @@ int main(int argc, char **argv) {
 	       (struct sockaddr *)&send_uni_addr,sizeof(send_uni_addr));
 
 	/* reset total time for pass token */
-	// haveToken = 0;
+	haveToken = 0;
 	tokenElapsedTime = 0.0;
 	clock_gettime(CLOCK_MONOTONIC, &tokenStartTime);
 	
@@ -421,24 +483,25 @@ int main(int argc, char **argv) {
 	      } 
 	    } else if (ring_msg.type == PASS_PACK) {
 	      /* get token ring for permission of multicast */
-	      printf("get multicast token, no:%d\n", ring_msg.no);
+	      printf("get multicast token, no : %d\n", ring_msg.no);
 	      if (status == CHECK_RECV_IP || status == DO_MCAST) {
 		status = DO_MCAST;
 	      }
 
 	      if (status == DO_MCAST) {
-		/* TO-DO, check local last token number, 
+		/* check local last token number, 
 		   then check if it owns the permission */
 		
 		if (last_token_ring.ring_msg.no >= ring_msg.no) {
 		  /* machine has used this token number, only pass token ring */
-		  printf("already got this token.\n");
+		  // printf("already got this token.\n");
 		  tokenElapsedTime = tokenTotalTime;
 
 		} else {
 		  
 		  if (last_token_ring.ring_msg.no == 0 ||
-		      last_token_ring.ring_msg.no + num_of_machines -1 == ring_msg.no) {
+		      last_token_ring.ring_msg.no + num_of_machines - 1 == ring_msg.no) {
+
 		    haveToken = 1;
 
 		    struct MULTI_CAST_RING_MSG multi_cast_ring_recv_msg;
@@ -454,26 +517,49 @@ int main(int argc, char **argv) {
 			aru = local_aru + MIN(SEND_DATA_WIN_SIZE, num_of_packets - sent_pack_num);
 		      } else if (multi_cast_ring_recv_msg.aru > local_aru) {
 			aru = local_aru; /* lower local_aru */
-			multi_cast_ring_recv_msg.machine_index = machine_index;
+			multi_cast_ring_msg.machine_index = machine_index;
 		      } else {
 			aru = multi_cast_ring_recv_msg.aru;
 		      }
 		    } else {
 		      aru = local_aru;
-		      multi_cast_ring_recv_msg.machine_index = -1;
+		      multi_cast_ring_msg.machine_index = -1;
 		    }
 		     		    
 		    send_seq = multi_cast_ring_recv_msg.seq;
 		    multi_cast_ring_msg.aru = aru;
 		    multi_cast_ring_msg.seq = send_seq +
 		      MIN(SEND_DATA_WIN_SIZE, num_of_packets - sent_pack_num);
-	
+		    memcpy(multi_cast_ring_msg.nack_list, multi_cast_ring_recv_msg.nack_list,
+			   NACK_LIST_LEN * sizeof(int));
+		    memcpy(multi_cast_ring_msg.send_pack_num,
+			   multi_cast_ring_recv_msg.send_pack_num,
+			   MAX_MACHINE_NUM * sizeof(int));
+		    memcpy(send_pack_nums, multi_cast_ring_recv_msg.send_pack_num,
+			   MAX_MACHINE_NUM * sizeof(int));
+		    
 		    multi_cast_ring_msg.ring_msg.msg.type = TOKEN_RING;
 		    multi_cast_ring_msg.ring_msg.no = multi_cast_ring_recv_msg.ring_msg.no + 1;
 		    multi_cast_ring_msg.ring_msg.type = PASS_PACK;
 
 		    last_token_ring = multi_cast_ring_msg;
-		  
+
+		    /* test */
+		    /*
+		    printf("bb : %d\n", multi_cast_ring_msg.bb[0]);
+		    printf("size : %d\n", sizeof(multi_cast_ring_recv_msg));
+		    printf("get token\n");
+		    printf("seq: %d\n", multi_cast_ring_msg.seq);
+		    printf("aru: %d\n", aru);
+		    printf("nack[0] : %d\n", multi_cast_ring_msg.nack_list[0]);
+		    
+		    int i = 0;
+		    for (; i<num_of_machines; i++) {
+		      int num = multi_cast_ring_recv_msg.send_pack_num[i];
+		      printf("num : %d\n", num);
+		    }
+		    */
+
 		  } else {
 		    printf("pass token error!\n");
 		  }
@@ -506,7 +592,7 @@ int main(int argc, char **argv) {
 	      struct INIT_MSG init_msg;
 	      memcpy(&init_msg, mess_buf, sizeof(init_msg));
 
-	      // Determine the index of next machine
+	      /* Determine the index of next machine */
 	      int next_index = (machine_index == num_of_machines ?
 				1 :machine_index + 1);
            
@@ -522,8 +608,8 @@ int main(int argc, char **argv) {
 		  status = CHECK_RECV_IP;
 		}
 	      } else {
-		/*printf("irrelevant init packet from machine %d, msg type %c.\n",
-		  init_msg.machine_index, init_msg.msg.type);*/
+		/* printf("irrelevant init packet from machine %d, msg type %c.\n",
+		   init_msg.machine_index, init_msg.msg.type); */
 	      }
 	    }
 	    
@@ -535,9 +621,9 @@ int main(int argc, char **argv) {
 	    if (status == CHECK_RECV_IP) {
 	      status = DO_MCAST;
 	    }
-
+	    
 	    if (status == DO_MCAST) {
-	      /* TO_DO: save message data */
+	      /* save message data */
 	      struct MULTI_CAST_CONTENT multi_cast_content;
 	      multi_cast_content = multi_cast_msg.content;
 
@@ -557,7 +643,7 @@ int main(int argc, char **argv) {
 		local_aru ++;
 	      }
 
-	      printf("current local_aru: %d\n", local_aru);
+	      // printf("current local_aru: %d\n", local_aru);
 	    }
 	    
 	  }
@@ -580,9 +666,29 @@ int main(int argc, char **argv) {
       memset(recvData + (RECV_CONTENT_LEN - WRITE_THRESHOLD), 0,
 	      WRITE_THRESHOLD * sizeof(struct MULTI_CAST_CONTENT));
     }
-    
-    if (local_aru >= 100)
+
+    /* check if the machine could be terminate */
+    int total_pack_num = 0;
+    int i = 0;
+    int check = 1;
+    for (; i<num_of_machines; i++) {
+      int num = send_pack_nums[i];
+      // printf("num : %d\n", num);
+      if (num != -1) {
+	total_pack_num += num;
+      } else {
+	check = 0;
+      }
+    }
+    // printf("check : %d\n", check);
+    // printf("total number of packet : %d\n", total_pack_num);
+    printf("local aru : %d\n", local_aru);
+    printf("safe aru : %d\n", safe_aru);
+
+    if (check && safe_aru >= total_pack_num) {
+      printf("terminate!\n");
       break;
+    }
   }
 
   fclose(fw);

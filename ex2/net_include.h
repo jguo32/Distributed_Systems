@@ -16,13 +16,14 @@
 #define PORT_MULTI_CAST	  10580
 #define PORT_UNI_CAST     10270
 
-#define MAX_MESS_LEN 1400
+#define MAX_MESS_LEN 10000
 #define NAME_LENGTH 80
 #define DUMMY_DATA_LENGTH 1300
 #define NACK_LIST_LEN 1000
 #define SEND_DATA_WIN_SIZE 10
 #define WRITE_THRESHOLD 1000
 #define RECV_CONTENT_LEN WRITE_THRESHOLD*3
+#define MAX_MACHINE_NUM 20
 
 #define RAND_MAX_NUM 1000000
 
@@ -87,4 +88,5 @@ struct MULTI_CAST_RING_MSG {
   int aru;
   int machine_index; /* the machine that lower the aru in token */
   int nack_list[NACK_LIST_LEN];
+  int send_pack_num[MAX_MACHINE_NUM];
 };
