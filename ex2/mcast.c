@@ -508,7 +508,7 @@ int main(int argc, char **argv) {
 	      } 
 	    } else if (ring_msg.type == PASS_PACK) {
 	      /* get token ring for permission of multicast */
-	      printf("get multicast token, no : %d\n", ring_msg.no);
+	    
 	      if (status == CHECK_RECV_IP || status == DO_MCAST) {
 		status = DO_MCAST;
 	      }
@@ -584,7 +584,7 @@ int main(int argc, char **argv) {
 		      printf("num : %d\n", num);
 		    }
 		    */
-		    printf("pass ring: recv start sec : %1ld, nsec : %.9ld \n", recvStartTime.tv_sec, recvStartTime.tv_nsec);
+		   
 		  } else {
 		    printf("pass token error!\n");
 		  }
