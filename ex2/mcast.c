@@ -247,11 +247,14 @@ int main(int argc, char **argv) {
   double recvTotalTime, recvElapsedTime;
   recvTotalTime = TOKEN_PASS_TIME;
 
+  /* for test */
+  int closed = 0;
+  
   for (;;) {
 
     printf("~~~~~~~~\n");
     
-    if (lastStatus != status) {
+    if (lastStatus != status || 1) {
       printf("status: %d\n", status);
       lastStatus = status;
     }
@@ -309,7 +312,19 @@ int main(int argc, char **argv) {
 	  multi_cast_content.rand_number = ((rand()+1) % RAND_MAX_NUM);
 
 	  /* copy the data to local */
+
+	  /*
+	  printf("send packets from %d to %d, %d packets sent out\n",
+	  send_seq, multi_cast_ring_msg.seq, sent_pack_num); */
+	  
 	  int pos = i - clear_times * WRITE_THRESHOLD;
+
+	  /*
+	  printf("seq : %d, pos : %d\n", i, pos);
+	  printf("safe aru : %d\n", safe_aru);
+	  printf("clear times : %d\n", clear_times);
+	  */
+	  
 	  recvData[pos] = multi_cast_content;
 	  recvDataCheck[pos] = 1;
 	  
@@ -323,12 +338,15 @@ int main(int argc, char **argv) {
 	  sendto(ss_multi, multi_cast_buf, sizeof(multi_cast_buf), 0,
 		 (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
 	}
-
+	
 	/*  multicast the packet in nack list (if machine has it) */ 
 
+	printf("send packet in nack list\n");
+	
 	int nack_list[NACK_LIST_LEN];
 	memset(nack_list, -1, NACK_LIST_LEN * sizeof(int));
-	
+
+	printf("nack: \n");
 	i = 0;
 	int j = 0;
 	while (i < NACK_LIST_LEN && multi_cast_ring_msg.nack_list[i] != -1) {
@@ -340,6 +358,7 @@ int main(int argc, char **argv) {
 
 	  /* copy the new nack (filter out unecessary nacks which smaller than safe_aru */
 	  nack_list[j++] = nack;
+	  printf("%d ", nack);
 
 	  int pos = nack - clear_times * WRITE_THRESHOLD;
 	  if (recvDataCheck[pos] == 1) {
@@ -359,20 +378,24 @@ int main(int argc, char **argv) {
 	  
 	  i ++;
 	}
-			
+	printf("\n");
+	
 	/* add the nack to nack list, update related parameter
 	   from local_aru to multi_cast_ring_msg.seq */
+
+	printf("pack nack list\n");
+	
 	i = local_aru;
 	for (; i < multi_cast_ring_msg.seq; i ++) {
 	  int pos = i - clear_times * WRITE_THRESHOLD;
-	  if (recvDataCheck[i] != 1) {
+	  if (recvDataCheck[pos] != 1) {
 	    nack_list[j++] = i;
 	  }
 	}
 
 	memcpy(multi_cast_ring_msg.nack_list, nack_list, NACK_LIST_LEN * sizeof(int));
 	multi_cast_ring_msg.send_pack_num[machine_index-1] = num_of_packets;
-	// printf("sent out token\n");
+	printf("send token\n");
 
 	/* test */
 	/*
@@ -390,6 +413,7 @@ int main(int argc, char **argv) {
 	sendto(ss_uni, multi_cast_ring_buf, sizeof(multi_cast_ring_buf), 0,
 	       (struct sockaddr *)&send_uni_addr,sizeof(send_uni_addr));
 
+	printf("sent out token\n");
 	/* reset total time for pass token */
 	haveToken = 0;
 	tokenElapsedTime = 0.0;
@@ -424,6 +448,7 @@ int main(int argc, char **argv) {
     // Receive msg packet
     recvElapsedTime = 0.0;
     clock_gettime(CLOCK_MONOTONIC, &recvStartTime);
+    // printf("recv start sec : %1ld, nsec : %.9ld \n", recvStartTime.tv_sec, recvStartTime.tv_nsec);
     
     for (;;) {
 
@@ -438,7 +463,7 @@ int main(int argc, char **argv) {
       } else {
 	num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, &timeout);
       }
-      
+     
       if (num > 0) {
 
 	/* check if the message from uni cast */
@@ -559,7 +584,7 @@ int main(int argc, char **argv) {
 		      printf("num : %d\n", num);
 		    }
 		    */
-
+		    printf("pass ring: recv start sec : %1ld, nsec : %.9ld \n", recvStartTime.tv_sec, recvStartTime.tv_nsec);
 		  } else {
 		    printf("pass token error!\n");
 		  }
@@ -615,6 +640,7 @@ int main(int argc, char **argv) {
 	    
 	  } else if (recv_msg.type == MCAST) {
 
+	    printf("get mcast: recv start sec : %1ld, nsec : %.9ld \n", recvStartTime.tv_sec, recvStartTime.tv_nsec);
 	    struct MULTI_CAST_MSG multi_cast_msg; 
 	    memcpy(&multi_cast_msg, mess_buf, sizeof(multi_cast_msg));
 	   	    
@@ -628,10 +654,14 @@ int main(int argc, char **argv) {
 	      multi_cast_content = multi_cast_msg.content;
 
 	      /* copy the data to local */
-	      
+
 	      int pos = multi_cast_content.packet_index - clear_times * WRITE_THRESHOLD;
-	      recvData[pos] = multi_cast_content;
-	      recvDataCheck[pos] = 1;
+	      if (pos >= 0) {
+		recvData[pos] = multi_cast_content;
+		recvDataCheck[pos] = 1;
+	      }
+	      	      
+	      // printf("move aru\n");
 
 	      /* move aru */
 	      while (recvDataCheck[local_aru - clear_times * WRITE_THRESHOLD] == 1) {
@@ -643,9 +673,11 @@ int main(int argc, char **argv) {
 		local_aru ++;
 	      }
 
+	      // printf("finish move aru\n");
+
 	      // printf("current local_aru: %d\n", local_aru);
 	    }
-	    
+	   	    
 	  }
 	}	
       }
@@ -654,17 +686,32 @@ int main(int argc, char **argv) {
       recvElapsedTime = (recvEndTime.tv_sec - recvStartTime.tv_sec);
       recvElapsedTime += (recvEndTime.tv_nsec - recvStartTime.tv_nsec) / 1000000000.0;
 
+      /*
+      printf("recv start sec : %1ld, nsec : %.9ld \n", recvStartTime.tv_sec, recvStartTime.tv_nsec);
+      printf("recv end   sec : %1ld, nsec : %.9ld \n", recvEndTime.tv_sec, recvEndTime.tv_nsec);
+      
+      printf("recv elapse time : %f\n", recvElapsedTime);
+      printf("recv total time  : %f\n", recvTotalTime);
+      */
+      
       if (recvElapsedTime > recvTotalTime)
 	break;
     }
 
     // check if clear first 1000 data
-    if (safe_aru > WRITE_THRESHOLD) {
+    if (safe_aru > (clear_times + 1) * WRITE_THRESHOLD) {
       clear_times ++;
+      printf("move\n");
       memcpy(recvData, recvData + WRITE_THRESHOLD,
 	     (RECV_CONTENT_LEN - WRITE_THRESHOLD) * sizeof(struct MULTI_CAST_CONTENT));
       memset(recvData + (RECV_CONTENT_LEN - WRITE_THRESHOLD), 0,
 	      WRITE_THRESHOLD * sizeof(struct MULTI_CAST_CONTENT));
+
+      memcpy(recvDataCheck, recvDataCheck + WRITE_THRESHOLD,
+	     (RECV_CONTENT_LEN - WRITE_THRESHOLD) * sizeof(int));
+      memset(recvDataCheck + (RECV_CONTENT_LEN - WRITE_THRESHOLD), 0,
+	     WRITE_THRESHOLD * sizeof(int));
+      printf("after move\n");
     }
 
     /* check if the machine could be terminate */
@@ -685,9 +732,11 @@ int main(int argc, char **argv) {
     printf("local aru : %d\n", local_aru);
     printf("safe aru : %d\n", safe_aru);
 
-    if (check && safe_aru >= total_pack_num) {
+    if (!closed && check && safe_aru >= total_pack_num) {
       printf("terminate!\n");
-      break;
+      fclose(fw);
+      closed = 1;
+      // break;
     }
   }
 

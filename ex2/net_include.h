@@ -89,4 +89,5 @@ struct MULTI_CAST_RING_MSG {
   int machine_index; /* the machine that lower the aru in token */
   int nack_list[NACK_LIST_LEN];
   int send_pack_num[MAX_MACHINE_NUM];
+  int ready_to_terminate[MAX_MACHINE_NUM];
 };
