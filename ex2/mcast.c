@@ -259,6 +259,10 @@ int main(int argc, char **argv) {
   struct timespec recvStartTime, recvEndTime;
   double recvTotalTime, recvElapsedTime;
   recvTotalTime = TOKEN_PASS_TIME;
+
+  struct timespec closeStartTime, closeEndTime;
+  double closeTotalTime, closeElapsedTime;
+  closeTotalTime = WAIT_END_TIME;
    
   for (;;) {
 
@@ -279,7 +283,7 @@ int main(int argc, char **argv) {
       memcpy(init_buf, &init_msg, sizeof(init_msg));
       sendto(ss_multi, init_buf, sizeof(init_buf), 0,
 	     (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
-        
+      
     } else if (status == CHECK_RECV_IP) {
 
       /* machine 1 will keep multicast it's ip addr until 
@@ -470,7 +474,6 @@ int main(int argc, char **argv) {
 	  tokenElapsedTime = 0.0;
 	  clock_gettime(CLOCK_MONOTONIC, &tokenStartTime);
 	}
-      
       }
     } else if (status == CLOSE) {
 
@@ -649,6 +652,7 @@ int main(int argc, char **argv) {
 	      }
 	      
 	    } else if (ring_msg.type == GET_CLOSE){
+
 	      struct CLOSE_CONFIRMATION_MSG close_confirm_msg;
 	      memcpy(&close_confirm_msg, mess_buf, sizeof(close_confirm_msg));
 	      int index = close_confirm_msg.machine_index;
@@ -747,7 +751,6 @@ int main(int argc, char **argv) {
 	      }
 
 	      // printf("finish move aru\n");
-
 	      // printf("current local_aru: %d\n", local_aru);
 	    } 
 	   	    
@@ -794,13 +797,10 @@ int main(int argc, char **argv) {
 	break;
     }
 
-    if (terminate)
-      break;
-
     // check if clear first 1000 data
     if (safe_aru > (clear_times + 1) * CLEAR_THRESHOLD) {
       clear_times ++;
-      printf("move\n");
+      // printf("move\n");
       memcpy(recvData, recvData + CLEAR_THRESHOLD,
 	     (RECV_CONTENT_LEN - CLEAR_THRESHOLD) * sizeof(struct MULTI_CAST_CONTENT));
       memset(recvData + (RECV_CONTENT_LEN - CLEAR_THRESHOLD), 0,
@@ -810,7 +810,7 @@ int main(int argc, char **argv) {
 	     (RECV_CONTENT_LEN - CLEAR_THRESHOLD) * sizeof(int));
       memset(recvDataCheck + (RECV_CONTENT_LEN - CLEAR_THRESHOLD), 0,
 	     CLEAR_THRESHOLD * sizeof(int));
-      printf("after move\n");
+      // printf("after move\n");
     }
 
     /* check if the machine received all packets */
@@ -826,8 +826,10 @@ int main(int argc, char **argv) {
 	check = 0;
       }
     }
+
     // printf("check : %d\n", check);
     // printf("total number of packet : %d\n", total_pack_num);
+
     printf("local aru : %d\n", local_aru);
     printf("safe aru : %d\n", safe_aru);
 
@@ -835,7 +837,7 @@ int main(int argc, char **argv) {
       printf("terminate!\n");
       ready_to_terminate[machine_index-1] = 1;
       
-      //fclose(fw);
+      // fclose(fw);
       // break;
     }
 
@@ -855,13 +857,31 @@ int main(int argc, char **argv) {
 	if (check_terminate_times < 2) {
 
 	  check_terminate_times ++;
-	  if (check_terminate_times >= 2)
+	  
+	  if (check_terminate_times >= 2) {
 	    status = CLOSE;
+	    clock_gettime(CLOCK_MONOTONIC, &closeStartTime);
+	    closeElapsedTime = 0.0;
+	  }
 	}
       } else {
 	status = READY_TO_CLOSE;
       }     
-    }    
+    }
+
+    /* check timeout */
+    if (status == CLOSE) {
+      clock_gettime(CLOCK_MONOTONIC, &closeEndTime);
+      closeElapsedTime = (closeEndTime.tv_sec - closeStartTime.tv_sec);
+      closeElapsedTime += (closeEndTime.tv_nsec - closeStartTime.tv_nsec) / 1000000000.0;
+
+      if (closeElapsedTime > closeTotalTime)
+	terminate = 1;
+    }
+    
+    if (terminate)
+      break;
+    
   }
 
   fclose(fw);

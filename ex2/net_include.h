@@ -29,6 +29,7 @@
 
 #define RECV_WAIT_TIME 0.001
 #define TOKEN_PASS_TIME 0.005
+#define WAIT_END_TIME 1.000
 
 /* Type of packets */
 #define START_MCAST 's'  // Starting signal sent by start_mcast
@@ -69,7 +70,6 @@ struct INIT_MSG {
 struct CLOSE_CONFIRMATION_MSG {
   struct MSG msg;
   int machine_index;
-
 };
 
 struct MULTI_CAST_CONTENT {
