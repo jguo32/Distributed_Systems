@@ -52,7 +52,6 @@
 #define NOTIFY_TO_CLOSE       5
 
 
-
 struct MSG {
   char type;
 };

@@ -754,7 +754,7 @@ int main(int argc, char **argv) {
 	      // printf("current local_aru: %d\n", local_aru);
 	    } 
 	   	    
-	  } else if (recv_msg.type == CLOSE) {
+	  } else if (recv_msg.type == NOTIFY_TO_CLOSE) {
 
 	    struct MULTI_CAST_CLOSE_MSG multi_cast_terminate_msg;
 	    memcpy(&multi_cast_terminate_msg, mess_buf, sizeof(multi_cast_terminate_msg));
@@ -859,7 +859,7 @@ int main(int argc, char **argv) {
 	  check_terminate_times ++;
 	  
 	  if (check_terminate_times >= 2) {
-	    status = CLOSE;
+	    status = NOTIFY_TO_CLOSE;
 	    clock_gettime(CLOCK_MONOTONIC, &closeStartTime);
 	    closeElapsedTime = 0.0;
 	  }
