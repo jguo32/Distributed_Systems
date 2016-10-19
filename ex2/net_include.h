@@ -20,7 +20,7 @@
 #define NAME_LENGTH 80
 #define DUMMY_DATA_LENGTH 1300
 #define NACK_LIST_LEN 4000
-#define SEND_DATA_WIN_SIZE 500
+#define SEND_DATA_WIN_SIZE 1000
 #define CLEAR_THRESHOLD 10000
 #define RECV_CONTENT_LEN CLEAR_THRESHOLD*3
 #define MAX_MACHINE_NUM 20
@@ -104,6 +104,6 @@ struct MULTI_CAST_RING_MSG {
   int aru;
   int machine_index; /* the machine that lower the aru in token */
   int nack_list[NACK_LIST_LEN];
-  int send_pack_num[MAX_MACHINE_NUM];
+  int send_complete[MAX_MACHINE_NUM];
   int ready_to_terminate[MAX_MACHINE_NUM];
 };
