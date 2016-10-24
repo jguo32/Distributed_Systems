@@ -599,7 +599,7 @@ int main(int argc, char **argv) {
 		    int send_seq_end = send_seq +
 		      MIN(SEND_DATA_WIN_SIZE, num_of_packets - sent_pack_num);
 
-		    send_seq_end = (send_seq_end - safe_aru >= NACK_LIST_LEN ?
+		    send_seq_end = (send_seq_end - safe_aru >= NACK_LIST_LEN/2 ?
 				    send_seq : send_seq_end);
 		   
 		    multi_cast_ring_msg.aru = aru;
