@@ -13,6 +13,8 @@
 #include <errno.h>
 
 #include "net_include.h"
+#include "recv_dbg.h"
+#include "recv_dbg.c"
 
 #define MIN(x, y) (x > y ? y : x)
 
@@ -48,7 +50,8 @@ int main(int argc, char **argv) {
   int num;
   char mess_buf[MAX_MESS_LEN];
   int status;
-
+  int last_safe_aru = PRINT_PACKET_GAP;
+  
   int tokenNo;
   int haveToken = 0;
   int local_aru = 0;
@@ -89,11 +92,11 @@ int main(int argc, char **argv) {
   machine_index = atoi(argv[2]);
   num_of_machines = atoi(argv[3]);
   loss_rate = atoi(argv[4]);
-
+  
   /* init file */
   char file_name[20];
   sprintf(file_name, "%d.out", machine_index);
-  printf("open file: %s\n", file_name);
+  printf("Open file: %s\n", file_name);
   
   if ((fw = fopen(file_name, "w")) == NULL) {
     perror("fopen error");
@@ -102,6 +105,9 @@ int main(int argc, char **argv) {
 
   memset(ready_to_terminate, -1, MAX_MACHINE_NUM * sizeof(int));
 
+  /* init recv_dbg */
+  recv_dbg_init(loss_rate, machine_index);
+  
   /* init status */
   status = WAIT_START_SIGNAL;
   
@@ -237,12 +243,13 @@ int main(int argc, char **argv) {
   // FD_SET((long)0, &mask); /* stdin */
 
   /*
-  printf("ss_multi: %d\n", ss_multi);
-  printf("sr_multi: %d\n", sr_multi);
-  printf("ss_uni: %d\n", ss_uni);
-  printf("sr_uni: %d\n", sr_uni);
+    printf("ss_multi: %d\n", ss_multi);
+    printf("sr_multi: %d\n", sr_multi);
+    printf("ss_uni: %d\n", ss_uni);
+    printf("sr_uni: %d\n", sr_uni);
   */
   printf("Machine Index: %d\n",machine_index);
+  printf("Waiting for start ...\n");
 
   int lastStatus = status;
 
@@ -257,13 +264,16 @@ int main(int argc, char **argv) {
   struct timespec closeStartTime, closeEndTime;
   double closeTotalTime, closeElapsedTime;
   closeTotalTime = WAIT_END_TIME;
-   
+
+  struct timespec mcastStartTime, mcastEndTime;
+  double  mcastElapsedTime;
+  
   for (;;) {
 
-    printf("~~~~~~~~\n");
-   
+    // printf("~~~~~~~~\n");
+    
     if (lastStatus != status) {
-      printf("status: %d\n", status);
+      //printf("status: %d\n", status);
       lastStatus = status;
     }
 
@@ -312,8 +322,8 @@ int main(int argc, char **argv) {
 	sent_pack_num += multi_cast_ring_msg.seq - send_seq;
 	/*
 	printf("send packets from %d to %d, %d packets sent out\n",
-	       send_seq, multi_cast_ring_msg.seq, sent_pack_num);
-	*/
+	send_seq, multi_cast_ring_msg.seq, sent_pack_num);*/
+	
 	int i = send_seq;
 
 	struct timespec StartTime, EndTime;
@@ -459,6 +469,7 @@ int main(int argc, char **argv) {
 
 	if (tokenElapsedTime >= tokenTotalTime) {
 
+	  // printf("resend token\n");
 	  /* resend current token */
 	  char multi_cast_ring_buf[sizeof(multi_cast_ring_msg)];
 	  memcpy(multi_cast_ring_buf, &multi_cast_ring_msg, sizeof(multi_cast_ring_msg));
@@ -512,16 +523,21 @@ int main(int argc, char **argv) {
 	/* check if the message from uni cast */
 	if (FD_ISSET(sr_uni, &temp_mask)) {
 	  // printf("get uni \n");
-	  struct MSG recv_msg;	  	  
-	  bytes = recv(sr_uni, mess_buf, sizeof(mess_buf), 0);
-	  // mess_buf[bytes] = 0;
+	  struct MSG recv_msg;
+	  
+	  if (status == WAIT_START_SIGNAL) {
+	    bytes = recv(sr_uni, mess_buf, sizeof(mess_buf), 0);
+	  } else {
+	    bytes = recv_dbg(sr_uni, mess_buf, sizeof(mess_buf), 0);
+	  }
+	  mess_buf[bytes] = 0;
 	  memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
 
 	  // printf("unicast, type:%c\n", recv_msg.type);
 
 	  /* check the type is Token ring */
 	  if (recv_msg.type == TOKEN_RING) {
-
+	    
 	    struct RING_MSG ring_msg; 
 	    memcpy(&ring_msg, mess_buf, sizeof(ring_msg));
 
@@ -530,7 +546,7 @@ int main(int argc, char **argv) {
 	      if (status == RECEIVED_START_SIGNAL || status == CHECK_RECV_IP) {
 	    
 		// printf("get token, type:%c\n", ring_msg.type);
-		printf("get check receive ip token, no:%d\n", ring_msg.no);
+		// printf("get check receive ip token, no:%d\n", ring_msg.no);
 		//return;
 		status = CHECK_RECV_IP; 
 	    
@@ -541,7 +557,7 @@ int main(int argc, char **argv) {
 		    tokenNo + num_of_machines == check_ip_msg.ring_msg.no) {
 		  if (machine_index == 1) {
 		    /* check ip token pass around */
-		    printf("machine 1 start to perform multicast,\n");
+		    // printf("machine 1 start to perform multicast,\n");
 		    status = DO_MCAST;
 		    haveToken = 1;
 		  } else {
@@ -692,7 +708,8 @@ int main(int argc, char **argv) {
 
 	  // printf("get multi");
 	  
-	  struct MSG recv_msg;	  
+	  struct MSG recv_msg;
+	  
 	  bytes = recv(sr_multi, mess_buf, sizeof(mess_buf), 0);
 	  //mess_buf[bytes] = 0;
 	  memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
@@ -700,7 +717,8 @@ int main(int argc, char **argv) {
 	  
 	  if (recv_msg.type == START_MCAST) {
 	    
-	    printf("Machine %d received start_mcast msg.\n", machine_index);
+	    // printf("Machine %d received start_mcast msg.\n", machine_index);
+	    clock_gettime(CLOCK_MONOTONIC, &mcastStartTime);
 	    status = RECEIVED_START_SIGNAL;
 	    
 	  } else if (recv_msg.type == INIT_MCAST) {
@@ -715,8 +733,8 @@ int main(int argc, char **argv) {
            
 	      // printIP(init_msg.addr.sin_addr.s_addr);
 	      if (init_msg.machine_index == next_index) {
-		printf("Received next machine IP address.\n");
-		printIP(init_msg.addr.sin_addr.s_addr);
+		// printf("Received next machine IP address.\n");
+		// printIP(init_msg.addr.sin_addr.s_addr);
 
 		send_uni_addr = init_msg.addr;
 	      
@@ -811,6 +829,16 @@ int main(int argc, char **argv) {
 	break;
     }
 
+    if (safe_aru >= last_safe_aru) {
+      // printf("~~~~~~~~~~~~~~~\n");
+      clock_gettime(CLOCK_MONOTONIC, &mcastEndTime);
+      mcastElapsedTime = (mcastEndTime.tv_sec - mcastStartTime.tv_sec);
+      mcastElapsedTime += (mcastEndTime.tv_nsec - mcastStartTime.tv_nsec) / 1000000000.0;
+      printf("%.2fs: %d packages received\n", mcastElapsedTime, safe_aru / PRINT_PACKET_GAP * 10000);
+      mcastElapsedTime = 0.0;
+      last_safe_aru = last_safe_aru + PRINT_PACKET_GAP;
+    }
+
     // check if clear first 1000 data
     if (safe_aru > (clear_times + 1) * CLEAR_THRESHOLD) {
       clear_times ++;
@@ -830,8 +858,8 @@ int main(int argc, char **argv) {
     // printf("check : %d\n", check);
     // printf("total number of packet : %d\n", total_pack_num);
 
-    printf("local aru : %d\n", local_aru);
-    printf("safe aru : %d\n", safe_aru);
+    // printf("local aru : %d\n", local_aru);
+    // printf("safe aru : %d\n", safe_aru);
 
     /* check if all the machines could be terminated */
     int machine_count = 0;
@@ -876,6 +904,12 @@ int main(int argc, char **argv) {
   }
 
   fclose(fw);
+
+  clock_gettime(CLOCK_MONOTONIC, &mcastEndTime);
+  mcastElapsedTime = (mcastEndTime.tv_sec - mcastStartTime.tv_sec);
+  mcastElapsedTime += (mcastEndTime.tv_nsec - mcastStartTime.tv_nsec) / 1000000000.0;
+
+  printf("Packages transfer complete, total time: %.2fs.\n", mcastElapsedTime);
   
   return 0;
 }
