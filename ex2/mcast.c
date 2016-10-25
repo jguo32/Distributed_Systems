@@ -242,12 +242,7 @@ int main(int argc, char **argv) {
   FD_SET(sr_uni, &mask);
   // FD_SET((long)0, &mask); /* stdin */
 
-  /*
-    printf("ss_multi: %d\n", ss_multi);
-    printf("sr_multi: %d\n", sr_multi);
-    printf("ss_uni: %d\n", ss_uni);
-    printf("sr_uni: %d\n", sr_uni);
-  */
+ 
   printf("Machine Index: %d\n",machine_index);
   printf("Waiting for start ...\n");
 
@@ -269,9 +264,7 @@ int main(int argc, char **argv) {
   double  mcastElapsedTime;
   
   for (;;) {
-
-    // printf("~~~~~~~~\n");
-    
+        
     if (lastStatus != status) {
       //printf("status: %d\n", status);
       lastStatus = status;
@@ -304,7 +297,6 @@ int main(int argc, char **argv) {
 	       (struct sockaddr *)&send_multi_addr,sizeof(send_multi_addr));
       }
 
-      //printIP(send_uni_addr.sin_addr.s_addr);
       struct CHECK_IP_RING_MSG check_ip_msg;
       char check_ip_buf[sizeof(check_ip_msg)];
       check_ip_msg.ring_msg.msg.type = TOKEN_RING;
@@ -320,12 +312,8 @@ int main(int argc, char **argv) {
 
 	/* multicast its content */
 	sent_pack_num += multi_cast_ring_msg.seq - send_seq;
-	/*
-	printf("send packets from %d to %d, %d packets sent out\n",
-	send_seq, multi_cast_ring_msg.seq, sent_pack_num);*/
 	
 	int i = send_seq;
-
 	struct timespec StartTime, EndTime;
 	double ElapsedTime;
 	clock_gettime(CLOCK_MONOTONIC, &StartTime);
@@ -339,17 +327,7 @@ int main(int argc, char **argv) {
 	  send_count ++;
 	  /* copy the data to local */
 
-	  /*
-	  printf("send packets from %d to %d, %d packets sent out\n",
-	  send_seq, multi_cast_ring_msg.seq, sent_pack_num); */
-	  
 	  int pos = i - clear_times * CLEAR_THRESHOLD;
-
-	  /*
-	  printf("seq : %d, pos : %d\n", i, pos);
-	  printf("safe aru : %d\n", safe_aru);
-	  printf("clear times : %d\n", clear_times);
-	  */
 	  
 	  recvData[pos] = multi_cast_content;
 	  recvDataCheck[pos] = 1;
@@ -367,8 +345,6 @@ int main(int argc, char **argv) {
 	
 	/*  multicast the packet in nack list (if machine has it) */ 
 
-	// printf("send packet in nack list\n");
-	
 	int nack_list[NACK_LIST_LEN];
 	memset(nack_list, -1, NACK_LIST_LEN * sizeof(int));
 	
@@ -380,7 +356,7 @@ int main(int argc, char **argv) {
 	    i ++;
 	    continue;
 	  }
-	  // printf("%d ", nack);
+
 	  /* copy the new nack (filter out unecessary nacks which smaller than safe_aru */
 	  nack_list[j++] = nack;
 	
@@ -407,40 +383,22 @@ int main(int argc, char **argv) {
 	clock_gettime(CLOCK_MONOTONIC, &EndTime);
 	ElapsedTime = (EndTime.tv_sec - StartTime.tv_sec);
 	ElapsedTime += (EndTime.tv_nsec - StartTime.tv_nsec) / 1000000000.0;
-	// printf("used time : %f, send count : %d\n", ElapsedTime, send_count);
-
-	// printf("nack list length : %d\n", j);
 	
 	/* add the nack to nack list, update related parameter
 	   from local_aru to multi_cast_ring_msg.seq */
 
-	// printf("pack nack list\n");
-	// printf("nack\n");
 	i = local_aru;
 	for (; i < multi_cast_ring_msg.seq; i ++) {
 	  int pos = i - clear_times * CLEAR_THRESHOLD;
 	  if (recvDataCheck[pos] != 1) {
 	    nack_list[j++] = i;
-	    // printf("%d ", i);
 	  }
 	}
-	// printf("\n");
 
 	memcpy(multi_cast_ring_msg.nack_list, nack_list, NACK_LIST_LEN * sizeof(int));
 	memcpy(multi_cast_ring_msg.ready_to_terminate, ready_to_terminate,
 	       MAX_MACHINE_NUM * sizeof(int));
 
-	// printf("send token\n");
-
-	/* test */
-	/*
-	printf("send token\n");
-	i = 0;
-	for (; i<num_of_machines; i++) {
-	  int num = multi_cast_ring_msg.send_pack_num[i];
-	  printf("num : %d\n", num);
-	}*/
-	
 	char multi_cast_ring_buf[sizeof(multi_cast_ring_msg)];
 
     	memcpy(multi_cast_ring_buf, &multi_cast_ring_msg,
@@ -453,7 +411,6 @@ int main(int argc, char **argv) {
 		 (struct sockaddr *)&send_uni_addr,sizeof(send_uni_addr));
 	}
 
-	// printf("sent out token\n");
 	/* reset total time for pass token */
 	haveToken = 0;
 	tokenElapsedTime = 0.0;
@@ -461,7 +418,6 @@ int main(int argc, char **argv) {
 	
       } else {
 	/* check if time out, if it does, resend token */
-
 	/* check timeout first */
 	clock_gettime(CLOCK_MONOTONIC, &tokenEndTime);
 	tokenElapsedTime = (tokenEndTime.tv_sec - tokenStartTime.tv_sec);
@@ -469,7 +425,6 @@ int main(int argc, char **argv) {
 
 	if (tokenElapsedTime >= tokenTotalTime) {
 
-	  // printf("resend token\n");
 	  /* resend current token */
 	  char multi_cast_ring_buf[sizeof(multi_cast_ring_msg)];
 	  memcpy(multi_cast_ring_buf, &multi_cast_ring_msg, sizeof(multi_cast_ring_msg));
@@ -501,9 +456,7 @@ int main(int argc, char **argv) {
     // Receive msg packet
     recvElapsedTime = 0.0;
     clock_gettime(CLOCK_MONOTONIC, &recvStartTime);
-    // printf("recv start sec : %1ld, nsec : %.9ld \n", recvStartTime.tv_sec, recvStartTime.tv_nsec);
-    // printf("get \n");
-
+ 
     for (;;) {
 
       timeout.tv_sec = 0;
@@ -522,7 +475,7 @@ int main(int argc, char **argv) {
 
 	/* check if the message from uni cast */
 	if (FD_ISSET(sr_uni, &temp_mask)) {
-	  // printf("get uni \n");
+
 	  struct MSG recv_msg;
 	  
 	  if (status == WAIT_START_SIGNAL) {
@@ -532,8 +485,6 @@ int main(int argc, char **argv) {
 	  }
 	  mess_buf[bytes] = 0;
 	  memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
-
-	  // printf("unicast, type:%c\n", recv_msg.type);
 
 	  /* check the type is Token ring */
 	  if (recv_msg.type == TOKEN_RING) {
@@ -545,9 +496,6 @@ int main(int argc, char **argv) {
 	      
 	      if (status == RECEIVED_START_SIGNAL || status == CHECK_RECV_IP) {
 	    
-		// printf("get token, type:%c\n", ring_msg.type);
-		// printf("get check receive ip token, no:%d\n", ring_msg.no);
-		//return;
 		status = CHECK_RECV_IP; 
 	    
 		struct CHECK_IP_RING_MSG check_ip_msg; 
@@ -557,7 +505,6 @@ int main(int argc, char **argv) {
 		    tokenNo + num_of_machines == check_ip_msg.ring_msg.no) {
 		  if (machine_index == 1) {
 		    /* check ip token pass around */
-		    // printf("machine 1 start to perform multicast,\n");
 		    status = DO_MCAST;
 		    haveToken = 1;
 		  } else {
@@ -576,12 +523,9 @@ int main(int argc, char **argv) {
 		/* check local last token number, 
 		   then check if it owns the permission */
 
-		// printf("get token\n");
 		if (multi_cast_ring_msg.ring_msg.no >= ring_msg.no) {
 		  /* machine has used this token number, only pass token ring */
-		  // printf("already got this token.\n");
 		  tokenElapsedTime = tokenTotalTime;
-
 		} else {
 		  
 		  if (multi_cast_ring_msg.ring_msg.no == 0 ||
@@ -656,23 +600,6 @@ int main(int argc, char **argv) {
 
 		    memcpy(&last_token_ring, &multi_cast_ring_recv_msg,
 			   sizeof(struct MULTI_CAST_RING_MSG));
-		 
-		    /* test */
-		    /*
-		      printf("bb : %d\n", multi_cast_ring_msg.bb[0]);
-		      printf("size : %d\n", sizeof(multi_cast_ring_recv_msg));
-		      printf("get token\n");
-		      printf("seq: %d\n", multi_cast_ring_msg.seq);
-		      printf("aru: %d\n", aru);
-		      printf("nack[0] : %d\n", multi_cast_ring_msg.nack_list[0]);
-		    
-		      int i = 0;
-		      for (; i<num_of_machines; i++) {
-		      int num = multi_cast_ring_recv_msg.send_pack_num[i];
-		      printf("num : %d\n", num);
-		      }
-		    */
-		   
 		  } else {
 		    
 		  }
@@ -705,19 +632,15 @@ int main(int argc, char **argv) {
 
 	  /* Check if the message from multicast */
 	} else if (FD_ISSET(sr_multi, &temp_mask)) {
-
-	  // printf("get multi");
 	  
 	  struct MSG recv_msg;
 	  
 	  bytes = recv(sr_multi, mess_buf, sizeof(mess_buf), 0);
 	  //mess_buf[bytes] = 0;
 	  memcpy(&recv_msg, mess_buf, sizeof(recv_msg));
-	  //printf("multicast, type:%c\n", recv_msg.type);
 	  
 	  if (recv_msg.type == START_MCAST) {
-	    
-	    // printf("Machine %d received start_mcast msg.\n", machine_index);
+
 	    clock_gettime(CLOCK_MONOTONIC, &mcastStartTime);
 	    status = RECEIVED_START_SIGNAL;
 	    
@@ -731,20 +654,15 @@ int main(int argc, char **argv) {
 	      int next_index = (machine_index == num_of_machines ?
 				1 :machine_index + 1);
            
-	      // printIP(init_msg.addr.sin_addr.s_addr);
 	      if (init_msg.machine_index == next_index) {
-		// printf("Received next machine IP address.\n");
-		// printIP(init_msg.addr.sin_addr.s_addr);
 
 		send_uni_addr = init_msg.addr;
-	      
 		/* pass token ring (for check) starts from machine 1 */
 		if (machine_index == 1) {
 		  status = CHECK_RECV_IP;
 		}
 	      } else {
-		/* printf("irrelevant init packet from machine %d, msg type %c.\n",
-		   init_msg.machine_index, init_msg.msg.type); */
+		/* printf("irrelevant init packet from machine %d, msg type %c.\n",init_msg.machine_index, init_msg.msg.type); */
 	      }
 	    }
 	    
@@ -763,15 +681,12 @@ int main(int argc, char **argv) {
 	      multi_cast_content = multi_cast_msg.content;
 
 	      /* copy the data to local */
-
 	      int pos = multi_cast_content.packet_index - clear_times * CLEAR_THRESHOLD;
 	      if (pos >= 0) {
 		recvData[pos] = multi_cast_content;
 		recvDataCheck[pos] = 1;
 	      }
-	      	      
-	      // printf("move aru\n");
-	      // printf("%d ", multi_cast_content.packet_index);
+
 	      /* move aru */
 	      while (recvDataCheck[local_aru - clear_times * CLEAR_THRESHOLD] == 1) {
 		/* write data to file */
@@ -782,8 +697,6 @@ int main(int argc, char **argv) {
 		local_aru ++;
 	      }
 
-	      // printf("finish move aru\n");
-	      // printf("current local_aru: %d\n", local_aru);
 	    } 
 	   	    
 	  } else if (recv_msg.type == CLOSE) {
@@ -817,20 +730,12 @@ int main(int argc, char **argv) {
       recvElapsedTime = (recvEndTime.tv_sec - recvStartTime.tv_sec);
       recvElapsedTime += (recvEndTime.tv_nsec - recvStartTime.tv_nsec) / 1000000000.0;
 
-      /*
-	printf("recv start sec : %1ld, nsec : %.9ld \n", recvStartTime.tv_sec, recvStartTime.tv_nsec);
-	printf("recv end   sec : %1ld, nsec : %.9ld \n", recvEndTime.tv_sec, recvEndTime.tv_nsec);
-      
-	printf("recv elapse time : %f\n", recvElapsedTime);
-	printf("recv total time  : %f\n", recvTotalTime);
-      */
-      
       if (recvElapsedTime > recvTotalTime)
 	break;
     }
 
     if (safe_aru >= last_safe_aru) {
-      // printf("~~~~~~~~~~~~~~~\n");
+
       clock_gettime(CLOCK_MONOTONIC, &mcastEndTime);
       mcastElapsedTime = (mcastEndTime.tv_sec - mcastStartTime.tv_sec);
       mcastElapsedTime += (mcastEndTime.tv_nsec - mcastStartTime.tv_nsec) / 1000000000.0;
@@ -842,7 +747,7 @@ int main(int argc, char **argv) {
     // check if clear first 1000 data
     if (safe_aru > (clear_times + 1) * CLEAR_THRESHOLD) {
       clear_times ++;
-      // printf("move\n");
+
       memcpy(recvData, recvData + CLEAR_THRESHOLD,
 	     (RECV_CONTENT_LEN - CLEAR_THRESHOLD) * sizeof(struct MULTI_CAST_CONTENT));
       memset(recvData + (RECV_CONTENT_LEN - CLEAR_THRESHOLD), 0,
@@ -852,14 +757,7 @@ int main(int argc, char **argv) {
 	     (RECV_CONTENT_LEN - CLEAR_THRESHOLD) * sizeof(int));
       memset(recvDataCheck + (RECV_CONTENT_LEN - CLEAR_THRESHOLD), 0,
 	     CLEAR_THRESHOLD * sizeof(int));
-      // printf("after move\n");
     }
-
-    // printf("check : %d\n", check);
-    // printf("total number of packet : %d\n", total_pack_num);
-
-    // printf("local aru : %d\n", local_aru);
-    // printf("safe aru : %d\n", safe_aru);
 
     /* check if all the machines could be terminated */
     int machine_count = 0;
