@@ -1,450 +1,293 @@
-/*
- * The Spread Toolkit.
- *     
- * The contents of this file are subject to the Spread Open-Source
- * License, Version 1.0 (the ``License''); you may not use
- * this file except in compliance with the License.  You may obtain a
- * copy of the License at:
- *
- * http://www.spread.org/license/
- *
- * or in the file ``license.txt'' found in this distribution.
- *
- * Software distributed under the License is distributed on an AS IS basis, 
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License 
- * for the specific language governing rights and limitations under the 
- * License.
- *
- * The Creators of Spread are:
- *  Yair Amir, Michal Miskin-Amir, Jonathan Stanton, John Schultz.
- *
- *  Copyright (C) 1993-2009 Spread Concepts LLC <info@spreadconcepts.com>
- *
- *  All Rights Reserved.
- *
- * Major Contributor(s):
- * ---------------
- *    Ryan Caudy           rcaudy@gmail.com - contributions to process groups.
- *    Claudiu Danilov      claudiu@acm.org - scalable wide area support.
- *    Cristina Nita-Rotaru crisn@cs.purdue.edu - group communication security.
- *    Theo Schlossnagle    jesus@omniti.com - Perl, autoconf, old skiplist.
- *    Dan Schoenblum       dansch@cnds.jhu.edu - Java interface.
- *
- */
-
-
-
 #include "sp.h"
 
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
-#define int32u unsigned int
+#define MAX_MESSLEN       102400
+#define MAX_MEMBERS       100
+#define MAX_PROCESSES     30
+#define WIN_SIZE          500
+#define DUMMY_DATA_LENGTH 1200
+#define RAND_MAX_NUM      1000000
+#define FINISH_SENDING    'f'
+#define REGULAR_MSG       'r'
+
+#define MIN(x, y) (x > y ? y : x)
 
 static	char	User[80];
 static  char    Spread_name[80];
-
 static  char    Private_group[MAX_GROUP_NAME];
 static  mailbox Mbox;
-static	int	    Num_sent;
-static	unsigned int	Previous_len;
 
-static  int     To_exit = 0;
+struct CONTENT {
+  int process_index;
+  int message_index;
+  int random_number;
+};
 
-#define MAX_MESSLEN     102400
-#define MAX_VSSETS      10
-#define MAX_MEMBERS     100
+struct MSG {
+  char type;
+};
 
-static	void	Print_menu();
-static	void	User_command();
-static	void	Read_message();
-static	void	Usage( int argc, char *argv[] );
-static  void    Print_help();
-static  void	Bye();
+struct FINISH_MSG {
+  struct MSG msg;
+  int process_index;
+};
+
+struct MCAST_MSG {
+  struct MSG msg;
+  struct CONTENT content;
+  int last_packet;     /* last packet in this send round */
+  char dummy_data[DUMMY_DATA_LENGTH];
+};
+
+static void Bye() {
+  printf("\nBye.\n");
+  SP_disconnect(Mbox);
+  // exit(0);
+}
 
 int main( int argc, char *argv[] )
 {
-	    int	    ret;
-        int     mver, miver, pver;
-        sp_time test_timeout;
+  int ret;
+  int round;
+  int send_seq;
+  int aru;
+  int last_aru;
+  int finished_send;
+  int exit;
 
-        test_timeout.sec = 5;
-        test_timeout.usec = 0;
+  struct timespec start_time, end_time;
+  double elapsed_time;
 
-	    Usage( argc, argv );
-        if (!SP_version( &mver, &miver, &pver)) 
-        {
-	          printf("main: Illegal variables passed to SP_version()\n");
-	          Bye();
-	    }
-	    printf("Spread library version is %d.%d.%d\n", mver, miver, pver);
+  FILE *fw;
+  
+  char            mess[MAX_MESSLEN];
+  char            sender[MAX_GROUP_NAME];
+  char            target_groups[MAX_MEMBERS][MAX_GROUP_NAME];
+  membership_info memb_info;
+  int             service_type;
+  int             num_groups;
+  int             endian_mismatch;
+  int16           mess_type;
 
-	    ret = SP_connect_timeout( Spread_name, User, 0, 1, &Mbox, Private_group, test_timeout );
-	    if( ret != ACCEPT_SESSION ) 
-	    {
-		    SP_error( ret );
-		    Bye();
-	    }
-	    printf("User: connected to %s with private group %s\n", Spread_name, Private_group );
+  struct CONTENT recv_buf[MAX_PROCESSES][WIN_SIZE];
+  int end_processes[MAX_PROCESSES];
+  int finished_processes[MAX_PROCESSES];
+  
+  /* Command line input parameters */
+  int num_of_messages;
+  int process_index;
+  int num_of_processes;
+  
+  if (argc != 4) {
+    printf("Usage: mcast <num_of_messages> <process_index> "
+	   "<num_of_processes> \n");
+    // exit(0);
+  }
 
-	    E_init();
+  num_of_messages = atoi(argv[1]);
+  process_index = atoi(argv[2]);
+  num_of_processes = atoi(argv[3]);
 
-	    E_attach_fd( 0, READ_FD, User_command, 0, NULL, LOW_PRIORITY );
+  /* init output file */
+  char file_name[20];
+  sprintf(file_name, "%d.out", process_index);
+  printf("Open file: %s\n", file_name);
 
-	    E_attach_fd( Mbox, READ_FD, Read_message, 0, NULL, HIGH_PRIORITY );
+  if ((fw = fopen(file_name, "w")) == NULL) {
+    perror("fopen error");
+    // exit(0);
+  }
 
-	    Print_menu();
+  sprintf(User, "yx_jy");
+  sprintf(Spread_name, "4803");
+  
+  ret = SP_connect(Spread_name, User, 0, 1, &Mbox, Private_group);
+  if (ret != ACCEPT_SESSION) {
+    SP_error(ret);
+    Bye();
+  }
 
-	    printf("\nUser> ");
-	    fflush(stdout);
+  ret = SP_join(Mbox, "group");
+  if (ret < 0) {
+    SP_error(ret);
+    Bye();
+  }
 
-	    Num_sent = 0;
+  printf("Waiting for other processes to join the group.\n");
+  /* wait for all the processes have joined the group */
+  while (1) {
+    ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
+		     &mess_type, &endian_mismatch, sizeof(mess), mess);
+    if (ret < 0) {
+      SP_error(ret);
+      Bye();
+    }
+    if (Is_membership_mess(service_type)) {
+      ret = SP_get_memb_info(mess, service_type, &memb_info);
+      if (ret < 0) {
+	SP_error(ret);
+	Bye();
+      }
 
-	    E_handle_events();
+      int membNum = memb_info.gid.id[2];
+      if (membNum >= num_of_processes)
+	break;
+    }
+  }
 
-	    return( 0 );
-}
+  printf("Every processes have joined the group!\nStart to transmit packages.\n");
+  
+  round = 0;
+  send_seq = 0;
+  aru = 0;
+  last_aru = 0;
+  finished_send = 0;
+  exit = 1;
 
-static	void	User_command()
-{
-	char	command[130];
-	char	mess[MAX_MESSLEN];
-	char	group[80];
-	char	groups[10][MAX_GROUP_NAME];
-	int	num_groups;
-	unsigned int	mess_len;
-	int	ret;
-	int	i;
+  clock_gettime(CLOCK_MONOTONIC, &start_time);
+	 
+  while (exit) {
 
-	for( i=0; i < sizeof(command); i++ ) command[i] = 0;
-	if( fgets( command, 130, stdin ) == NULL ) 
-            Bye();
+    memset(end_processes, -1, MAX_PROCESSES * sizeof(int));
+    
+    // send step
+    if (!finished_send) {
+      // printf("send\n");
+      if (send_seq == num_of_messages) {
+	// printf("send finish\n");
 
-	switch( command[0] )
-	{
-		case 'j':
-			ret = sscanf( &command[2], "%s", group );
-			if( ret < 1 ) 
-			{
-				printf(" invalid group \n");
-				break;
-			}
-			ret = SP_join( Mbox, group );
-			if( ret < 0 ) SP_error( ret );
+	struct FINISH_MSG finish_msg;
+	finish_msg.msg.type = FINISH_SENDING;
+	finish_msg.process_index = process_index;
+	
+	ret = SP_multicast(Mbox, AGREED_MESS, "group", 0, sizeof(finish_msg), (char *)&finish_msg);
+	finished_send = 1;
+	
+      } else {
+	
+	int sendNum = MIN(WIN_SIZE, num_of_messages - send_seq);
 
-			break;
+	for (int i = 0; i < sendNum; i ++) {
+	            
+	  struct MCAST_MSG mcast_msg;
+	  mcast_msg.msg.type = REGULAR_MSG;
+	  mcast_msg.content.process_index = process_index;
+	  mcast_msg.content.message_index = send_seq;
+	  mcast_msg.content.random_number = ((rand() + 1) % RAND_MAX_NUM);
+	  mcast_msg.last_packet = (i == sendNum - 1);
 
-		case 'l':
-			ret = sscanf( &command[2], "%s", group );
-			if( ret < 1 ) 
-			{
-				printf(" invalid group \n");
-				break;
-			}
-			ret = SP_leave( Mbox, group );
-			if( ret < 0 ) SP_error( ret );
+	  ret = SP_multicast(Mbox, AGREED_MESS, "group", 0, sizeof(mcast_msg), (char *)&mcast_msg);
 
-			break;
-
-		case 's':
-			num_groups = sscanf(&command[2], "%s%s%s%s%s%s%s%s%s%s", 
-						groups[0], groups[1], groups[2], groups[3], groups[4],
-						groups[5], groups[6], groups[7], groups[8], groups[9] );
-			if( num_groups < 1 ) 
-			{
-				printf(" invalid group \n");
-				break;
-			}
-			printf("enter message: ");
-			if (fgets(mess, 200, stdin) == NULL)
-				Bye();
-			mess_len = strlen( mess );
-			ret= SP_multigroup_multicast( Mbox, SAFE_MESS, num_groups, (const char (*)[MAX_GROUP_NAME]) groups, 1, mess_len, mess );
-			if( ret < 0 ) 
-			{
-				SP_error( ret );
-				Bye();
-			}
-			Num_sent++;
-
-			break;
-
-		case 'm':
-			num_groups = sscanf(&command[2], "%s%s%s%s%s%s%s%s%s%s", 
-						groups[0], groups[1], groups[2], groups[3], groups[4],
-						groups[5], groups[6], groups[7], groups[8], groups[9] );
-			if( num_groups < 1 ) 
-			{
-				printf(" invalid group \n");
-				break;
-			}
-			printf("enter message: ");
-                        mess_len = 0;
-                        while ( mess_len < MAX_MESSLEN) {
-                            if (fgets(&mess[mess_len], 200, stdin) == NULL)
-				Bye();
-                            if (mess[mess_len] == '\n')
-                                break;
-                            mess_len += strlen( &mess[mess_len] );
-                        }
-			ret= SP_multigroup_multicast( Mbox, SAFE_MESS, num_groups, (const char (*)[MAX_GROUP_NAME]) groups, 1, mess_len, mess );
-			if( ret < 0 ) 
-			{
-				SP_error( ret );
-				Bye();
-			}
-			Num_sent++;
-
-			break;
-
-		case 'b':
-			ret=sscanf( &command[2], "%s", group );
-			if( ret != 1 ) strcpy( group, "dummy_group_name" );
-			printf("enter size of each message: ");
-			if (fgets(mess, 200, stdin) == NULL)
-				Bye();
-			ret=sscanf(mess, "%u", &mess_len );
-			if( ret !=1 ) mess_len = Previous_len;
-                        if( mess_len > MAX_MESSLEN ) mess_len = MAX_MESSLEN;
-			Previous_len = mess_len;
-			printf("sending 10 messages of %u bytes\n", mess_len );
-			for( i=0; i<10; i++ )
-			{
-				Num_sent++;
-				sprintf( mess, "mess num %d ", Num_sent );
-				ret= SP_multicast( Mbox, FIFO_MESS, group, 2, mess_len, mess );
-
-				if( ret < 0 ) 
-				{
-					SP_error( ret );
-					Bye();
-				}
-				printf("sent message %d (total %d)\n", i+1, Num_sent );
-			}
-			break;
-
-		case 'r':
-
-			Read_message();
-			break;
-
-		case 'p':
-
-			ret = SP_poll( Mbox );
-			printf("Polling sais: %d\n", ret );
-			break;
-
-		case 'e':
-
-			E_attach_fd( Mbox, READ_FD, Read_message, 0, NULL, HIGH_PRIORITY );
-
-			break;
-
-		case 'd':
-
-			E_detach_fd( Mbox, READ_FD );
-
-			break;
-
-		case 'q':
-			Bye();
-			break;
-
-		default:
-			printf("\nUnknown commnad\n");
-			Print_menu();
-
-			break;
+	  /*
+	  printf("processs_i: %d, msg_i: %d, num: %d, last: %d\n",  process_index, send_seq,
+		 mcast_msg.content.random_number, mcast_msg.last_packet);
+	  */
+	  
+	  send_seq += 1;
 	}
-	printf("\nUser> ");
-	fflush(stdout);
+      }
+    }
+    
+    // recv step
+    // printf("recv\n");
+    int totalNum = -1;
+    int recvNum = 0;
+    while (totalNum == -1 || recvNum < totalNum){
+      
+      ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
+		       &mess_type, &endian_mismatch, sizeof(mess), mess);
 
-}
+      struct MSG msg;
+      memcpy(&msg, mess, sizeof(msg));
 
-static	void	Print_menu()
-{
-	printf("\n");
-	printf("==========\n");
-	printf("User Menu:\n");
-	printf("----------\n");
-	printf("\n");
-	printf("\tj <group> -- join a group\n");
-	printf("\tl <group> -- leave a group\n");
-	printf("\n");
-	printf("\ts <group> -- send a message\n");
-    printf("\tm <group> -- send a multiline message to group. Terminate with empty line\n");
-	printf("\tb <group> -- send a burst of messages\n");
-	printf("\n");
-	printf("\tr -- receive a message (stuck) \n");
-	printf("\tp -- poll for a message \n");
-	printf("\te -- enable asynchonous read (default)\n");
-	printf("\td -- disable asynchronous read \n");
-	printf("\n");
-	printf("\tq -- quit\n");
-	fflush(stdout);
-}
+      // printf("type: %c\n", msg.type);
+      
+      if (msg.type == FINISH_SENDING) {
 
-/* FIXME: The user.c code does not use memcpy()s to avoid bus errors when
- *        dereferencing a pointer into a potentially misaligned buffer */
+	struct FINISH_MSG finish_msg;
+	memcpy(&finish_msg, mess, sizeof(finish_msg));
+	finished_processes[finish_msg.process_index - 1] = 1;
+	// printf("end of process: %d\n", finish_msg.process_index);
+	
+      } else if (msg.type == REGULAR_MSG) {
 
-static	void	Read_message()
-{
-
-static	char		 mess[MAX_MESSLEN];
-        char		 sender[MAX_GROUP_NAME];
-        char		 target_groups[MAX_MEMBERS][MAX_GROUP_NAME];
-        membership_info  memb_info;
-        vs_set_info      vssets[MAX_VSSETS];
-        unsigned int     my_vsset_index;
-        int              num_vs_sets;
-        char             members[MAX_MEMBERS][MAX_GROUP_NAME];
-        int		 num_groups;
-        int		 service_type;
-        int16		 mess_type;
-        int		 endian_mismatch;
-        int		 i,j;
-        int		 ret;
-
-        service_type = 0;
-
-	ret = SP_receive( Mbox, &service_type, sender, 100, &num_groups, target_groups, 
-		&mess_type, &endian_mismatch, sizeof(mess), mess );
-	printf("\n============================\n");
-	if( ret < 0 ) 
-	{
-                if ( (ret == GROUPS_TOO_SHORT) || (ret == BUFFER_TOO_SHORT) ) {
-                        service_type = DROP_RECV;
-                        printf("\n========Buffers or Groups too Short=======\n");
-                        ret = SP_receive( Mbox, &service_type, sender, MAX_MEMBERS, &num_groups, target_groups, 
-                                          &mess_type, &endian_mismatch, sizeof(mess), mess );
-                }
-        }
-        if (ret < 0 )
-        {
-		if( ! To_exit )
-		{
-			SP_error( ret );
-			printf("\n============================\n");
-			printf("\nBye.\n");
-		}
-		exit( 0 );
+	struct MCAST_MSG mcast_msg;
+	memcpy(&mcast_msg, mess, sizeof(mcast_msg));
+	recv_buf[mcast_msg.content.process_index - 1][mcast_msg.content.message_index - round * WIN_SIZE] = mcast_msg.content;
+	
+	if (mcast_msg.last_packet) {
+	  end_processes[mcast_msg.content.process_index - 1] = (mcast_msg.content.message_index - round * WIN_SIZE);
+	  // printf("last packet: %d\n", mcast_msg.content.message_index);
 	}
-	if( Is_regular_mess( service_type ) )
-	{
-		mess[ret] = 0;
-		if     ( Is_unreliable_mess( service_type ) ) printf("received UNRELIABLE ");
-		else if( Is_reliable_mess(   service_type ) ) printf("received RELIABLE ");
-		else if( Is_fifo_mess(       service_type ) ) printf("received FIFO ");
-		else if( Is_causal_mess(     service_type ) ) printf("received CAUSAL ");
-		else if( Is_agreed_mess(     service_type ) ) printf("received AGREED ");
-		else if( Is_safe_mess(       service_type ) ) printf("received SAFE ");
-		printf("message from %s, of type %d, (endian %d) to %d groups \n(%d bytes): %s\n",
-			sender, mess_type, endian_mismatch, num_groups, ret, mess );
-	}else if( Is_membership_mess( service_type ) )
-        {
-                ret = SP_get_memb_info( mess, service_type, &memb_info );
-                if (ret < 0) {
-                        printf("BUG: membership message does not have valid body\n");
-                        SP_error( ret );
-                        exit( 1 );
-                }
-		if     ( Is_reg_memb_mess( service_type ) )
-		{
-			printf("Received REGULAR membership for group %s with %d members, where I am member %d:\n",
-				sender, num_groups, mess_type );
-			for( i=0; i < num_groups; i++ )
-				printf("\t%s\n", &target_groups[i][0] );
-			printf("grp id is %d %d %d\n",memb_info.gid.id[0], memb_info.gid.id[1], memb_info.gid.id[2] );
 
-			if( Is_caused_join_mess( service_type ) )
-			{
-				printf("Due to the JOIN of %s\n", memb_info.changed_member );
-			}else if( Is_caused_leave_mess( service_type ) ){
-				printf("Due to the LEAVE of %s\n", memb_info.changed_member );
-			}else if( Is_caused_disconnect_mess( service_type ) ){
-				printf("Due to the DISCONNECT of %s\n", memb_info.changed_member );
-			}else if( Is_caused_network_mess( service_type ) ){
-				printf("Due to NETWORK change with %u VS sets\n", memb_info.num_vs_sets);
-                                num_vs_sets = SP_get_vs_sets_info( mess, &vssets[0], MAX_VSSETS, &my_vsset_index );
-                                if (num_vs_sets < 0) {
-                                        printf("BUG: membership message has more then %d vs sets. Recompile with larger MAX_VSSETS\n", MAX_VSSETS);
-                                        SP_error( num_vs_sets );
-                                        exit( 1 );
-                                }
-                                for( i = 0; i < num_vs_sets; i++ )
-                                {
-                                        printf("%s VS set %d has %u members:\n",
-                                               (i  == my_vsset_index) ?
-                                               ("LOCAL") : ("OTHER"), i, vssets[i].num_members );
-                                        ret = SP_get_vs_set_members(mess, &vssets[i], members, MAX_MEMBERS);
-                                        if (ret < 0) {
-                                                printf("VS Set has more then %d members. Recompile with larger MAX_MEMBERS\n", MAX_MEMBERS);
-                                                SP_error( ret );
-                                                exit( 1 );
-                                        }
-                                        for( j = 0; j < vssets[i].num_members; j++ )
-                                                printf("\t%s\n", members[j] );
-                                }
-			}
-		}else if( Is_transition_mess(   service_type ) ) {
-			printf("received TRANSITIONAL membership for group %s\n", sender );
-		}else if( Is_caused_leave_mess( service_type ) ){
-			printf("received membership message that left group %s\n", sender );
-		}else printf("received incorrecty membership message of type 0x%x\n", service_type );
-        } else if ( Is_reject_mess( service_type ) )
-        {
-		printf("REJECTED message from %s, of servicetype 0x%x messtype %d, (endian %d) to %d groups \n(%d bytes): %s\n",
-			sender, service_type, mess_type, endian_mismatch, num_groups, ret, mess );
-	}else printf("received message of unknown message type 0x%x with ret %d\n", service_type, ret);
+	/*
+	printf("process: process_i: %d, msg_i: %d, num: %d\n", mcast_msg.content.process_index,
+	       mcast_msg.content.message_index, mcast_msg.content.random_number); 
+	*/
 
+	recvNum += 1;
+      }
 
-	printf("\n");
-	printf("User> ");
-	fflush(stdout);
+      if (totalNum == -1) {
+	totalNum = 0;
+	for (int i = 0; i < num_of_processes; i ++) {
+	  if (finished_processes[i] == 1){
+	    continue;
+	  } else if (end_processes[i] != -1) {
+	    totalNum += (end_processes[i] + 1);
+	  } else {
+	    totalNum = -1;
+	    break;
+	  }
+	}
+	// printf("totalNum: %d\n", totalNum);
+      }
+      
+    }
+
+    for (int i = 0; i < num_of_processes; i ++) {
+      // printf("end num: %d\n", end_processes[i]);
+      for (int n = 0; n <= end_processes[i]; n ++) {
+   	fprintf(fw, "%2d, %8d, %8d\n", recv_buf[i][n].process_index, aru, recv_buf[i][n].random_number);
+	aru += 1;
+
+	if (aru%1000 == 0 && aru > last_aru) {
+	  printf("Received %d packets.\n", aru);
+	  last_aru = aru;
+	}
+	
+      }
+    }
+    
+    int count = 0;
+    for (int i = 0; i < num_of_processes; i ++) {
+      if (finished_processes[i] == 1) count ++;
+    }
+
+    if (count == num_of_processes)
+      exit = 0;
+    
+    round ++;
+  }
+
+  clock_gettime(CLOCK_MONOTONIC, &end_time);
+  elapsed_time = (end_time.tv_sec - start_time.tv_sec);
+  elapsed_time += (end_time.tv_nsec - start_time.tv_nsec) / 1000000000.0;
+
+  printf("%.2fs: %d packages received.\n", elapsed_time, aru);
+  
+  printf("Packages transmission complete!\n");
+  printf("Bye.\n");
+  SP_disconnect(Mbox);
+  
+  fclose(fw);
+  
+  return(0);
 }
 
-static	void	Usage(int argc, char *argv[])
-{
-	sprintf( User, "user" );
-	sprintf( Spread_name, "4803");
-	while( --argc > 0 )
-	{
-		argv++;
 
-		if( !strncmp( *argv, "-u", 2 ) )
-		{
-                        if (argc < 2) Print_help();
-                        strcpy( User, argv[1] );
-                        argc--; argv++;
-		}else if( !strncmp( *argv, "-r", 2 ) )
-		{
-			strcpy( User, "" );
-		}else if( !strncmp( *argv, "-s", 2 ) ){
-                        if (argc < 2) Print_help();
-			strcpy( Spread_name, argv[1] ); 
-			argc--; argv++;
-		}else{
-                    Print_help();
-                }
-	 }
-}
-static  void    Print_help()
-{
-    printf( "Usage: spuser\n%s\n%s\n%s\n",
-            "\t[-u <user name>]  : unique (in this machine) user name",
-            "\t[-s <address>]    : either port or port@machine",
-            "\t[-r ]    : use random user name");
-    exit( 0 );
-}
-static  void	Bye()
-{
-	To_exit = 1;
-
-	printf("\nBye.\n");
-
-	SP_disconnect( Mbox );
-
-	exit( 0 );
-}
