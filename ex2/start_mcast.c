@@ -24,7 +24,7 @@ int main() {
 
   send_addr.sin_family = AF_INET;
   send_addr.sin_addr.s_addr = htonl(mcast_addr);
-  send_addr.sin_port = htons(PORT);
+  send_addr.sin_port = htons(PORT_MULTI_CAST);
 
   struct START_MSG start_msg;
   start_msg.msg.type = START_MCAST;
