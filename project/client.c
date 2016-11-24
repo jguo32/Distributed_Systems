@@ -14,6 +14,7 @@ static char Spread_name[80];
 static char Private_group[MAX_GROUP_NAME];
 static mailbox Mbox;
 static char username[80];
+static char server_index[10];
 
 static void user_command();
 static void print_menu();
@@ -49,7 +50,7 @@ int main(int argc, char *argv[]) {
 
   E_attach_fd(0, READ_FD, user_command, 0, NULL, LOW_PRIORITY);
 
-  E_attach_fd(0, READ_FD, read_message, 0, NULL, HIGH_PRIORITY);
+  E_attach_fd(Mbox, READ_FD, read_message, 0, NULL, HIGH_PRIORITY);
 
   print_menu();
 
@@ -75,7 +76,7 @@ static void user_command() {
     command[i] = 0;
   }
 
-  if (fgets(commad, 130, stdin) == NULL) {
+  if (fgets(command, 130, stdin) == NULL) {
     Bye();
   }
 
@@ -86,14 +87,48 @@ static void user_command() {
         printf("Invalid username.\n");
 	break;
       }
+      printf("User logged in as: %s\n", username);
       break;
     case 'c':
+      ret = sscanf( &command[2], "%s", server_index );
+      int index = atoi(server_index);
+      if (ret < 1 || !(index <= 5 && index >= 1)) {
+        printf("Invalid server index.\n");
+        break;	
+      }
+      
+      // Join the public group of the designated server
+      char public_group[80];
+      strcpy(public_group, "public_group_");
+      strcat(public_group, server_index);
+      ret = SP_join(Mbox, public_group);
+      if (ret < 0) {
+        SP_error(ret);
+	Bye();
+      }
+      
+      // TODO: Get response from the server
+      
 
+      // TODO: Join the private group set by the server
+
+
+      printf("Successfully connected to server #%d\n", index);
       break;
     case 'l':
       break;
+    case 'q':
+      Bye();
+      break;
+
+    default:
+      printf("\nUnknown command.\n");
+      print_menu();
+      break;
 
   }
+  printf("\nUser> ");
+  fflush(stdout);
 }
 
 static void read_message() {}
