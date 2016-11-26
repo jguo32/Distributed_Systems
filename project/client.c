@@ -81,57 +81,55 @@ static void user_command() {
   }
 
   switch(command[0]) {
-    case 'u':
-      ret = sscanf( &command[2], "%s", username );
-      if (ret < 1) {
-        printf("Invalid username.\n");
-	break;
-      }
-      printf("User logged in as: %s\n", username);
+  case 'u':
+    ret = sscanf( &command[2], "%s", username );
+    if (ret < 1) {
+      printf("Invalid username.\n");
       break;
-    case 'c':
-      ret = sscanf( &command[2], "%s", server_index );
-      int index = atoi(server_index);
-      if (ret < 1 || !(index <= 5 && index >= 1)) {
-        printf("Invalid server index.\n");
-        break;	
-      }
-      
-      // Join the public group of the designated server
-      char public_group[80];
-      strcpy(public_group, "public_group_");
-      strcat(public_group, server_index);
-      ret = SP_join(Mbox, public_group);
-      if (ret < 0) {
-        SP_error(ret);
-	Bye();
-      }
-      
-      // TODO: Get response from the server
-      
+    }
+    printf("User logged in as: %s\n", username);
+    break;
 
-      // TODO: Join the private group set by the server
-
-
-      printf("Successfully connected to server #%d\n", index);
-      break;
-    case 'l':
-      break;
-    case 'q':
+  case 'c':
+    ret = sscanf( &command[2], "%s", server_index );
+    int index = atoi(server_index);
+    if (ret < 1 || !(index <= 5 && index >= 1)) {
+      printf("Invalid server index.\n");
+      break;	
+    }
+      
+    // Join the public group of the designated server
+    char public_group[80];
+    strcpy(public_group, "public_group_");
+    strcat(public_group, server_index);
+    ret = SP_join(Mbox, public_group);
+    if (ret < 0) {
+      SP_error(ret);
       Bye();
-      break;
+    }
 
-    default:
-      printf("\nUnknown command.\n");
-      print_menu();
-      break;
+    printf("Successfully connected to server #%d\n", index);
+    break;
+  case 'l':
+    break;
+  case 'q':
+    Bye();
+    break;
+
+  default:
+    printf("\nUnknown command.\n");
+    print_menu();
+    break;
 
   }
   printf("\nUser> ");
   fflush(stdout);
 }
 
-static void read_message() {}
+static void read_message() {
+  // TODO: Get response from the server
+  // TODO: Join the private group set by the server
+}
 
 static void print_menu() {
   printf("\n");
