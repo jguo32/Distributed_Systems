@@ -113,7 +113,7 @@ static void user_command() {
     strcat(public_group, server_index);
 
     struct CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
-    private_group_req_msg.source.type = CLIENT;
+    private_group_req_msg.msg.source.type = CLIENT;
     private_group_req_msg.msg.type = PRIVATE_GROUP_REQ;
     
     ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg);
