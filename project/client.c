@@ -164,6 +164,7 @@ static void read_message() {
 	   private_group_res_msg.group_name);
     
   }
+
   
 }
 
