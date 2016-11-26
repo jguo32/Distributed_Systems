@@ -102,7 +102,12 @@ static void user_command() {
     char public_group[80];
     strcpy(public_group, "public_group_");
     strcat(public_group, server_index);
-    ret = SP_join(Mbox, public_group);
+
+    CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
+    private_group_req_msg.type = PRIVATE_GROUP_REQ;
+    
+    ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg));
+  
     if (ret < 0) {
       SP_error(ret);
       Bye();
@@ -129,6 +134,24 @@ static void user_command() {
 static void read_message() {
   // TODO: Get response from the server
   // TODO: Join the private group set by the server
+
+  int             service_type;
+  char            sender[MAX_GROUP_NAME];
+  int             num_groups;
+  char            target_groups[MAX_MEMBERS][MAX_GROUP_NAME];
+  int16           mess_type;
+  int             endian_mismatch;
+  char            mess[MAX_MESSLEN];
+  
+  ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups, 
+		&mess_type, &endian_mismatch, sizeof(mess), mess);
+  if (ret < 0) {
+    SP_error(ret);
+    Bye();
+  }
+  
+  SERVER_MSG msg;
+  
 }
 
 static void print_menu() {
