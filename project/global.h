@@ -17,7 +17,7 @@ struct CLIENT_MSG {
 };
 
 struct CLIENT_PRIVATE_GROUP_REQ_MSG {
-  CLIENT_MSG msg;
+  struct CLIENT_MSG msg;
 };
 
 /* msg from server to client */
@@ -26,8 +26,8 @@ struct SERVER_MSG {
   char type;
 };
 
-struct SERVER_PRIVATE_GROUP_MSG {
-  SERVER_MSG msg;
+struct SERVER_PRIVATE_GROUP_RES_MSG {
+  struct SERVER_MSG msg;
   char group_name[GROUPNAME_LEN];
 };
   
