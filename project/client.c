@@ -123,7 +123,6 @@ static void user_command() {
       Bye();
     }
 
-    printf("successfully connected to server #%d\n", index);
     break;
     
   case 'm':
@@ -202,6 +201,8 @@ static void read_message() {
     }
 
     status = CONNECT;
+    printf("successfully connected to server #%d\n", index);
+    printf("\nUser> ");
   }
   
 }
