@@ -146,14 +146,15 @@ int main(int argc, char *argv[]) {
 
         // Leave the group if it is a private group and current server is
         // the only member
-        if (Is_caused_leave_mess(service_type)) {
-          printf("Leave mess detected.\n");
+        if (Is_caused_leave_mess(service_type) || Is_caused_disconnect_mess(service_type)) {
           if (num_groups == 1 &&
               strncmp("_client", sender, strlen("_client")) == 0) {
             SP_leave(Mbox, sender);
-            printf("Left private group %s\n", sender);
+            //printf("Left private group %s\n", sender);
           }
         }
+	  
+
       }
     }
 
