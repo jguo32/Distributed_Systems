@@ -9,7 +9,7 @@
 #define MAX_MESSLEN       102400
 #define MAX_MEMBERS       100
 #define MAX_PROCESSES     30
-#define WIN_SIZE          500
+#define WIN_SIZE          1000
 #define DUMMY_DATA_LENGTH 1200
 #define RAND_MAX_NUM      1000000
 #define FINISH_SENDING    'f'

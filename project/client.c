@@ -1,5 +1,6 @@
 #include "sp.h"
 
+
 #include "global.h"
 #include <sys/types.h>
 #include <stdio.h>
@@ -167,7 +168,6 @@ static void read_message() {
   if (msg.type == PRIVATE_GROUP_RES) {
     struct SERVER_PRIVATE_GROUP_RES_MSG private_group_res_msg;
     memcpy(&private_group_res_msg, mess, sizeof(private_group_res_msg));
-    
     ret = SP_join(Mbox, private_group_res_msg.group_name);
 
     memcpy(private_group_name, private_group_res_msg.group_name,

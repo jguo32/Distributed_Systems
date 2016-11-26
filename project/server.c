@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
 
     struct SOURCE src;
     memcpy(&src, mess, sizeof(src));
-    if (src.source == CLIENT) {
+    if (src.type == CLIENT) {
       struct CLIENT_MSG client_msg;
       memcpy(&client_msg, mess, sizeof(client_msg));
 
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
       }
-    } else if (src.source == SERVER) {
+    } else if (src.type == SERVER) {
 
     }
 
