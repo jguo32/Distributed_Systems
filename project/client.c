@@ -21,7 +21,10 @@ static void print_menu();
 static void read_message();
 static void Bye();
 
-int ret;
+
+int in_private_group = 0;      //check if the client is connecting with one server
+                               //(in one group)
+char private_group[GROUPNAME_LEN];
 
 int main(int argc, char *argv[]) {
   char *client_index;
@@ -97,7 +100,16 @@ static void user_command() {
       printf("Invalid server index.\n");
       break;	
     }
-      
+
+    if (in_private_group == 1) {
+      ret = SP_leave(Mbox, private_group_name);
+      if (ret < 0) {
+	SP_error(ret);
+	Bye();
+      }
+    }
+
+    in_private_group = 1;
     // Join the public group of the designated server
     char public_group[80];
     strcpy(public_group, "public_group_");
@@ -112,8 +124,6 @@ static void user_command() {
       SP_error(ret);
       Bye();
     }
-
-    printf("Successfully connected to server #%d\n", index);
     break;
   case 'l':
     break;
@@ -158,15 +168,20 @@ static void read_message() {
     struct SERVER_PRIVATE_GROUP_RES_MSG private_group_res_msg;
     memcpy(&private_group_res_msg, mess, sizeof(private_group_res_msg));
     ret = SP_join(Mbox, private_group_res_msg.group_name);
+
+    memcpy(private_group_name, private_group_res_msg.group_name,
+	   sizeof(private_group_name));
+    
     if (ret < 0) {
       SP_error(ret);
       Bye();
     }
-    printf("successfully join the private group: %s",
-	   private_group_res_msg.group_name);
-    
-  }
 
+    
+    printf("Successfully connected to server #%d\n", index);
+    printf("successfully join the private group: %s\n",
+	   private_group_res_msg.group_name);
+  }
   
 }
 
@@ -184,6 +199,7 @@ static void print_menu() {
   printf("\td <mail_index>: delete a mail message.\n");
   printf("\tr <mail_index>: read a received mail message.\n");
   printf("\tv: print the membership of the mail servers.\n");
+  
   printf("\n");
   printf("\tq: quit.\n");
   fflush(stdout);

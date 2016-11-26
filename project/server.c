@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
 
     struct CLIENT_MSG client_request;
     memcpy(&client_request, mess, sizeof(client_request));
-
+    
     if (client_request.type == PRIVATE_GROUP_REQ) {
       // Build the private group name
       char private_group[80];
