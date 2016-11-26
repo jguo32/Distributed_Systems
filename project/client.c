@@ -24,7 +24,7 @@ static void Bye();
 
 int in_private_group = 0;      //check if the client is connecting with one server
                                //(in one group)
-char private_group[GROUPNAME_LEN];
+char private_group_name[GROUPNAME_LEN];
 
 int main(int argc, char *argv[]) {
   char *client_index;
@@ -124,6 +124,8 @@ static void user_command() {
       SP_error(ret);
       Bye();
     }
+
+    printf("successfully connected to server #%d\n", index);
     break;
   case 'l':
     break;
@@ -177,8 +179,6 @@ static void read_message() {
       Bye();
     }
 
-    
-    printf("Successfully connected to server #%d\n", index);
     printf("successfully join the private group: %s\n",
 	   private_group_res_msg.group_name);
   }
