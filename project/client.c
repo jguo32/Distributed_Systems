@@ -1,6 +1,5 @@
 #include "sp.h"
 
-
 #include "global.h"
 #include <sys/types.h>
 #include <stdio.h>
@@ -143,8 +142,7 @@ static void user_command() {
 }
 
 static void read_message() {
-  // TODO: Get response from the server
-  // TODO: Join the private group set by the server
+  // TODO: check invalid server
 
   int             service_type;
   char            sender[MAX_GROUP_NAME];
@@ -168,6 +166,7 @@ static void read_message() {
   if (msg.type == PRIVATE_GROUP_RES) {
     struct SERVER_PRIVATE_GROUP_RES_MSG private_group_res_msg;
     memcpy(&private_group_res_msg, mess, sizeof(private_group_res_msg));
+    
     ret = SP_join(Mbox, private_group_res_msg.group_name);
 
     memcpy(private_group_name, private_group_res_msg.group_name,
@@ -179,7 +178,7 @@ static void read_message() {
     }
 
     status = CONNECT;
-    printf("successfully join the private group: %s\n",
+
 	   private_group_res_msg.group_name);
   }
   
