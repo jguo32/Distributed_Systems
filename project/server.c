@@ -87,40 +87,43 @@ int main(int argc, char *argv[]) {
       exit(0);
     }
 
-    struct CLIENT_MSG client_request;
-    memcpy(&client_request, mess, sizeof(client_request));
-    
-    if (client_request.type == PRIVATE_GROUP_REQ) {
-      // Build the private group name
-      char private_group[80];
-      strcpy(private_group, sender);
-      strcat(private_group, "#");
-      strcat(private_group, User);
-      printf("private group name: %s\n", private_group);
+    struct SOURCE src;
+    memcpy(&src, mess, sizeof(src));
+    if (src.type == CLIENT) {
+      struct CLIENT_MSG client_msg;
+      memcpy(&client_msg, mess, sizeof(client_msg));
 
-      // Replace '#' by '_' in the group name
-      for (int i = 0; i < 80 && private_group[i] != '\0'; i++) {
-        if (private_group[i] == '#') {
-          private_group[i] = '_';
-	}
+      if (client_msg.type == PRIVATE_GROUP_REQ) {
+        // Build the private group name
+        char private_group[80];
+        strcpy(private_group, sender);
+        strcat(private_group, "#");
+        strcat(private_group, User);
+        printf("private group name: %s\n", private_group);
+
+        // Replace '#' by '_' in the group name
+        for (int i = 0; i < 80 && private_group[i] != '\0'; i++) {
+          if (private_group[i] == '#') {
+            private_group[i] = '_';
+          }
+        }
+
+        // Join the private group
+        SP_join(Mbox, private_group);
+
+        // Return the private group name to the client
+        struct SERVER_PRIVATE_GROUP_RES_MSG server_response;
+        server_response.msg.type = PRIVATE_GROUP_RES;
+        strcpy(server_response.group_name, private_group);
+        ret = SP_multicast(Mbox, AGREED_MESS, sender, 0,
+                           sizeof(server_response), (char *)&server_response);
+        if (ret < 0) {
+          SP_error(ret);
+          printf("\nBye.\n");
+          exit(0);
+        }
       }
-
-      // Join the private group
-      SP_join(Mbox, private_group);
-      //SP_join(Mbox, "client_1_ugrad9_server_1");
-      
-      // Return the private group name to the client
-      struct SERVER_PRIVATE_GROUP_RES_MSG server_response;
-      server_response.msg.type = PRIVATE_GROUP_RES;
-      strcpy(server_response.group_name, private_group);
-      ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(server_response),
-                         (char *)&server_response);
-      if (ret < 0) {
-        SP_error(ret);
-        printf("\nBye.\n");
-        exit(0);
-      }
-
+    } else if (src.type == SERVER) {
 
     }
 
@@ -132,32 +135,41 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
 
-      
       if (Is_reg_memb_mess(service_type)) {
-        if (Is_reg_memb_mess(service_type)) {
-          printf("Received REGULAR membership for group %s with %d members, "
-                 "where I am member %d:\n",
-                 sender, num_groups, mess_type);
-          for (int i = 0; i < num_groups; i++)
-            printf("\t%s\n", &target_groups[i][0]);
-          printf("grp id is %d %d %d\n", memb_info.gid.id[0],
-                 memb_info.gid.id[1], memb_info.gid.id[2]);
-          char private_group[80];
-          strcpy(private_group, "private_group");
+        printf("Received REGULAR membership for group %s with %d members, "
+               "where I am member %d:\n",
+               sender, num_groups, mess_type);
+
+        for (int i = 0; i < num_groups; i++)
+          printf("\t%s\n", &target_groups[i][0]);
+
+        /*
+        printf("grp id is %d %d %d\n", memb_info.gid.id[0],
+               memb_info.gid.id[1], memb_info.gid.id[2]);
+        **/
+
+        // Leave the group if it is a private group and current server is
+        // the only member
+        if (Is_caused_leave_mess(service_type) ||
+            Is_caused_disconnect_mess(service_type)) {
+          if (num_groups == 1 &&
+              strncmp("_client", sender, strlen("_client")) == 0) {
+            SP_leave(Mbox, sender);
+            // printf("Left private group %s\n", sender);
+          }
         }
       }
-      
     }
+
+    // Event handler skeleton
+    /*
+    E_init();
+
+    E_attach_fd(Mbox, READ_FD, read_message, 0, NULL, HIGH_PRIORITY);
+
+    E_handle_events();
+    **/
   }
-
-  // Event handler skeleton
-  E_init();
-
-  E_attach_fd(Mbox, READ_FD, read_message, 0, NULL, HIGH_PRIORITY);
-
-  E_handle_events();
-
-  return (0);
 }
 
 static void read_message() {}
