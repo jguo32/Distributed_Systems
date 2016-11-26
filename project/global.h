@@ -10,17 +10,25 @@
 #define GROUPNAME_LEN      MAX_GROUP_NAME
 // char user_name[USERNAME_LEN];
 
+/* client status */
+#define INIT             'i'
+#define LOGIN            'g'
+#define CONNECT          'c'
+
+/* msg type between client with server */
 #define PRIVATE_GROUP_REQ       'p'
 #define PRIVATE_GROUP_RES       'r'
+#define SEND_EMAIL              'e'
+
 
 /* msg from client to server */
 
 struct SOURCE {
-  char source;
+  char type;
 };
 
 struct CLIENT_MSG {
-  char source;
+  struct SOURCE source;
   char type;
 };
 
