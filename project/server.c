@@ -71,10 +71,12 @@ int main(int argc, char *argv[]) {
          server_index, public_group);
 
   // Test code
+  /**
   char send_buf[80];
   strcpy(send_buf, "hello world....");
   ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP, 0, sizeof(send_buf),
                      send_buf);
+  **/
 
   // May use Spread event handler
   membership_info memb_info;
@@ -82,6 +84,23 @@ int main(int argc, char *argv[]) {
     ret =
         SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
                    &mess_type, &endian_mismatch, sizeof(mess), mess);
+    if (ret < 0) {
+      SP_error(ret);
+      printf("\nBye.\n");
+      exit(0);
+    }
+    
+    // Response to a client connection request
+    // Build the private group name
+    char send_buf[80];
+    strcpy(send_buf, sender);
+    strcat(send_buf, User);
+    printf("private group name: %s\n", send_buf);
+    
+    // Join the private group 
+    SP_join(Mbox, send_buf);
+
+    ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(send_buf), send_buf);
     if (ret < 0) {
       SP_error(ret);
       printf("\nBye.\n");
