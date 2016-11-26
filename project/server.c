@@ -15,7 +15,7 @@ struct EMAIL_MSG_NODE {
 };
 
 struct EMAIL_MSG {
-//TODO
+  // TODO
 };
 
 struct USER_NODE {
@@ -155,15 +155,17 @@ int main(int argc, char *argv[]) {
           }
         }
 
+        // Create a new mail node
+        // TODO: add server_id and index to email_node, wrap with EMAIL_MSG
+        struct EMAIL_MSG_NODE new_email_node;
+        new_email_node.email = send_email_msg.email;
+
         // Add a new user node if it is not in the list
         if (user_email_node == NULL) {
           struct USER_NODE new_user;
-	  strcpy(new_user.user_name, user_name);
-          //new_user.user_name = user_name;
+          strcpy(new_user.user_name, user_name);
+          // Create a new header mail node for the new user
           struct EMAIL_MSG_NODE new_email_head;
-	  //TODO: add server_id and index to email_node
-	  struct EMAIL_MSG_NODE new_email_node;
-	  new_email_node.email = send_email_msg.email;
           new_email_head.next = &new_email_node;
 
           new_user.email_node = new_email_head;
@@ -174,12 +176,12 @@ int main(int argc, char *argv[]) {
           while (user_email_node->next != NULL) {
             user_email_node = user_email_node->next;
           }
-          user_email_node->next = &send_email_msg.email;
+          user_email_node->next = &new_email_node;
         }
 
-        printf("Received mail from %s, to %s, with content %s\n",
+        printf("Received mail from %s, to %s, with subject %s, content %s\n",
                send_email_msg.email.from, send_email_msg.email.to,
-               send_email_msg.email.content);
+               send_email_msg.email.subject, send_email_msg.email.content);
       }
     } else if (src.type == SERVER) {
       // Process update messages from other servers
@@ -218,15 +220,21 @@ int main(int argc, char *argv[]) {
         }
       }
     }
+  }
+}
 
-    // Event handler skeleton
-    /*
-    E_init();
+static void print_user_list(struct USER_NODE *user) {
+  while (user != NULL) {
+    printf("User %s in the list.\n", user->user_name);
+    user = user->next;
+  }
+}
 
-    E_attach_fd(Mbox, READ_FD, read_message, 0, NULL, HIGH_PRIORITY);
-
-    E_handle_events();
-    **/
+static void print_email_list(struct EMAIL_MSG_NODE *head) {
+  struct EMAIL_MSG_NODE *cur = head->next;
+  while (cur != NULL) {
+    printf("Mail with content %s  ", cur->email.content);
+    cur = cur->next;
   }
 }
 
