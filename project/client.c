@@ -20,8 +20,7 @@ static void print_menu();
 static void read_message();
 static void Bye();
 
-int in_private_group = 0;      //check if the client is connecting with one server
-                               //(in one group)
+char status = INIT;
 char private_group_name[GROUPNAME_LEN];
 
 int main(int argc, char *argv[]) {
@@ -89,6 +88,7 @@ static void user_command() {
       break;
     }
     printf("User logged in as: %s\n", user_name);
+    status = LOGIN;
     break;
 
   case 'c':
@@ -99,7 +99,7 @@ static void user_command() {
       break;	
     }
 
-    if (in_private_group == 1) {
+    if (status  == CONNECT) {
       ret = SP_leave(Mbox, private_group_name);
       if (ret < 0) {
 	SP_error(ret);
@@ -107,7 +107,6 @@ static void user_command() {
       }
     }
 
-    in_private_group = 1;
     // Join the public group of the designated server
     char public_group[80];
     strcpy(public_group, "public_group_");
@@ -179,6 +178,7 @@ static void read_message() {
       Bye();
     }
 
+    status = CONNECT;
     printf("successfully join the private group: %s\n",
 	   private_group_res_msg.group_name);
   }
