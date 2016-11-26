@@ -95,25 +95,42 @@ int main(int argc, char *argv[]) {
         SP_error(ret);
         exit(1);
       }
-    }
+      if (Is_reg_memb_mess(service_type)) {
+        if (Is_reg_memb_mess(service_type)) {
+	  /**
+          printf("Received REGULAR membership for group %s with %d members, "
+                 "where I am member %d:\n",
+                 sender, num_groups, mess_type);
+          for (int i = 0; i < num_groups; i++)
+            printf("\t%s\n", &target_groups[i][0]);
+          printf("grp id is %d %d %d\n", memb_info.gid.id[0],
+                 memb_info.gid.id[1], memb_info.gid.id[2]);
+	 **/
+	  char private_group[80];
+	  strcpy(private_group, "private_group");
 
+        }
+      }
+    }
   }
 
-  // Event handler skeleton
-  E_init();
+    // Event handler skeleton
+    E_init();
 
-  E_attach_fd(Mbox, READ_FD, read_message, 0, NULL, HIGH_PRIORITY);
+    E_attach_fd(Mbox, READ_FD, read_message, 0, NULL, HIGH_PRIORITY);
 
-  E_handle_events();
+    E_handle_events();
 
-  return (0);
-}
-static void read_message() {}
+    return (0);
+  }
 
-static void print_menu() { printf("\n"); }
 
-static void Bye() {
-  printf("\nBye.\n");
-  SP_disconnect(Mbox);
-  exit(0);
-}
+  static void read_message() {}
+
+  static void print_menu() { printf("\n"); }
+
+  static void Bye() {
+    printf("\nBye.\n");
+    SP_disconnect(Mbox);
+    exit(0);
+  }
