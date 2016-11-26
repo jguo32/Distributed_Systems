@@ -142,6 +142,7 @@ static void read_message() {
   int16           mess_type;
   int             endian_mismatch;
   char            mess[MAX_MESSLEN];
+  int             ret;
   
   ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups, 
 		   &mess_type, &endian_mismatch, sizeof(mess), mess);
@@ -157,7 +158,15 @@ static void read_message() {
     struct SERVER_PRIVATE_GROUP_RES_MSG private_group_res_msg;
     memcpy(&private_group_res_msg, mess, sizeof(private_group_res_msg));
     ret = SP_join(Mbox, private_group_res_msg.group_name);
+    if (ret < 0) {
+      SP_error(ret);
+      Bye();
+    }
+    printf("successfully join the private group: %s",
+	   private_group_res_msg.group_name);
+    
   }
+
   
 }
 
