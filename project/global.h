@@ -21,12 +21,12 @@
 #define SEND_EMAIL              'e'
 
 
-/* msg from client to server */
 
 struct SOURCE {
   char type;
 };
 
+/* msg from client to server */
 struct CLIENT_MSG {
   struct SOURCE source;
   char type;
@@ -47,7 +47,4 @@ struct SERVER_PRIVATE_GROUP_RES_MSG {
 };
   
 
-
-
-  
 
