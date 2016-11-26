@@ -178,8 +178,6 @@ static void read_message() {
     }
 
     status = CONNECT;
-
-	   private_group_res_msg.group_name);
   }
   
 }

@@ -9,6 +9,21 @@
 #define PORT "10580"
 #define GLOBAL_GROUP "GLOBAL"
 
+struct EMAIL_MSG_NODE {
+  struct EMAIL email;
+  struct EMAIL_MSG_NODE *next;
+};
+
+struct EMAIL_MSG {
+//TODO
+};
+
+struct USER_NODE {
+  char user_name[80];
+  struct EMAIL_MSG_NODE email_node;
+  struct USER_NODE *next;
+};
+
 static char User[80];
 static char Spread_name[80];
 static char Private_group[MAX_GROUP_NAME];
@@ -19,7 +34,8 @@ static void read_message();
 static void Bye();
 
 int main(int argc, char *argv[]) {
-  int num_servers = 5;
+  static int index_matrix[5][5]; // Lamport index matrix
+  struct USER_NODE *user_list_header = malloc(sizeof(struct USER_NODE));
   char *server_index;
 
   static char mess[MAX_MESSLEN];
@@ -123,10 +139,50 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
       } else if (client_msg.type == SEND_EMAIL) {
-        
+        struct CLIENT_SEND_EMAIL_MSG send_email_msg;
+        memcpy(&send_email_msg, mess, sizeof(send_email_msg));
+        // TODO: memcpy here
+        char *user_name = send_email_msg.receiver_name;
+
+        // Check if the receiver is in the server's user list
+        struct EMAIL_MSG_NODE *user_email_node = NULL;
+        struct USER_NODE *user_list_node = user_list_header;
+        while (user_list_node->next != NULL) {
+          user_list_node = user_list_node->next;
+          if (strcmp(user_list_node->user_name, user_name) == 0) {
+            user_email_node = &user_list_node->email_node;
+            break;
+          }
+        }
+
+        // Add a new user node if it is not in the list
+        if (user_email_node == NULL) {
+          struct USER_NODE new_user;
+	  strcpy(new_user.user_name, user_name);
+          //new_user.user_name = user_name;
+          struct EMAIL_MSG_NODE new_email_head;
+	  //TODO: add server_id and index to email_node
+	  struct EMAIL_MSG_NODE new_email_node;
+	  new_email_node.email = send_email_msg.email;
+          new_email_head.next = &new_email_node;
+
+          new_user.email_node = new_email_head;
+          user_list_node->next = &new_user;
+
+        } else {
+          // Append the new mail to the end of the existing mail list
+          while (user_email_node->next != NULL) {
+            user_email_node = user_email_node->next;
+          }
+          user_email_node->next = &send_email_msg.email;
+        }
+
+        printf("Received mail from %s, to %s, with content %s\n",
+               send_email_msg.email.from, send_email_msg.email.to,
+               send_email_msg.email.content);
       }
     } else if (src.type == SERVER) {
-
+      // Process update messages from other servers
     }
 
     if (Is_membership_mess(service_type)) {
