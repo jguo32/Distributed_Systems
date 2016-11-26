@@ -29,9 +29,7 @@ struct CLIENT_PRIVATE_GROUP_REQ_MSG {
 };
 
 /* msg from server to client */
-
 struct SERVER_MSG {
-  char source;
   char type;
 };
 
