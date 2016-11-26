@@ -1,4 +1,5 @@
 #include "sp.h"
+#include "global.h"
 
 #include <sys/types.h>
 #include <stdio.h>
@@ -106,7 +107,7 @@ static void user_command() {
     CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
     private_group_req_msg.type = PRIVATE_GROUP_REQ;
     
-    ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg));
+    ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg);
   
     if (ret < 0) {
       SP_error(ret);

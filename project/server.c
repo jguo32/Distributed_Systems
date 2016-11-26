@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
     struct CLIENT_MSG client_request;
     memcpy(&client_request, mess, sizeof(client_request));
 
-    if (client_request == PRIVATE_GROUP_REQ) {
+    if (client_request.type == PRIVATE_GROUP_REQ) {
       // Build the private group name
       char private_group[80];
       strcpy(private_group, sender);
@@ -103,10 +103,10 @@ int main(int argc, char *argv[]) {
 
       // Return the private group name to the client
       struct SERVER_PRIVATE_GROUP_MSG server_response;
-      server_response.type = PRIVATE_GROUP_RES;
+      server_response.msg.type = PRIVATE_GROUP_RES;
       strcpy(server_response.group_name, private_group);
       ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(server_response),
-                         server_response);
+                         (char *)&server_response);
       if (ret < 0) {
         SP_error(ret);
         printf("\nBye.\n");

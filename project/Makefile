@@ -1,8 +1,8 @@
 CC=gcc
 LD=gcc
 CFLAGS=-g -Wall 
-CPPFLAGS=-I. -I/home/cs437/exercises/ex3/include
-SP_LIBRARY_DIR=/home/cs437/exercises/ex3
+CPPFLAGS=-I. -I/home/jguo32/Distributed_Systems/project/include
+SP_LIBRARY_DIR=/home/jguo32/Distributed_Systems/project
 
 all: server client
 
