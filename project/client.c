@@ -92,7 +92,7 @@ static void user_command() {
     break;
 
   case 'c':
-    ret = sscanf( &command[2], "%s", server_index );
+    ret = sscanf( &command[2], "%s", server_index);
     int index = atoi(server_index);
     if (ret < 1 || !(index <= 5 && index >= 1)) {
       printf("Invalid server index.\n");
@@ -201,7 +201,7 @@ static void read_message() {
     }
 
     status = CONNECT;
-    printf("successfully connected to server #%d\n", index);
+    printf("successfully connected to server #%s\n", server_index);
     printf("\nUser> ");
   }
   
