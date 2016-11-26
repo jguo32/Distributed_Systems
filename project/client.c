@@ -1,12 +1,10 @@
 #include "sp.h"
-#include "global.h"
 
+#include "global.h"
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define MAX_MESSLEN 102400
 
 #define PORT "10580"
 
@@ -14,7 +12,7 @@ static char User[80];
 static char Spread_name[80];
 static char Private_group[MAX_GROUP_NAME];
 static mailbox Mbox;
-static char username[80];
+static char user_name[80];
 static char server_index[10];
 
 static void user_command();
@@ -24,8 +22,6 @@ static void Bye();
 
 int main(int argc, char *argv[]) {
   char *client_index;
-  char user_name[80];
-  
   int ret;
 
   if (argc != 2) {
@@ -83,12 +79,12 @@ static void user_command() {
 
   switch(command[0]) {
   case 'u':
-    ret = sscanf( &command[2], "%s", username );
+    ret = sscanf( &command[2], "%s", user_name );
     if (ret < 1) {
-      printf("Invalid username.\n");
+      printf("Invalid user name.\n");
       break;
     }
-    printf("User logged in as: %s\n", username);
+    printf("User logged in as: %s\n", user_name);
     break;
 
   case 'c':
@@ -104,8 +100,8 @@ static void user_command() {
     strcpy(public_group, "public_group_");
     strcat(public_group, server_index);
 
-    CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
-    private_group_req_msg.type = PRIVATE_GROUP_REQ;
+    struct CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
+    private_group_req_msg.msg.type = PRIVATE_GROUP_REQ;
     
     ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg);
   
@@ -143,15 +139,25 @@ static void read_message() {
   int16           mess_type;
   int             endian_mismatch;
   char            mess[MAX_MESSLEN];
+  int             ret;
   
   ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups, 
-		&mess_type, &endian_mismatch, sizeof(mess), mess);
+		   &mess_type, &endian_mismatch, sizeof(mess), mess);
   if (ret < 0) {
     SP_error(ret);
     Bye();
   }
   
-  SERVER_MSG msg;
+  struct SERVER_MSG msg;
+  memcpy(&msg, mess, sizeof(msg));
+  
+  if (msg.type == PRIVATE_GROUP_RES) {
+    struct SERVER_PRIVATE_GROUP_RES_MSG private_group_res_msg;
+    memcpy(&private_group_res_msg, mess, sizeof(private_group_res_msg));
+    
+    ret = SP_join(Mbox, private_group_res_msg.group_name);
+  }
+
   
 }
 

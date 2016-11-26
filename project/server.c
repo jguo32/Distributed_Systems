@@ -94,15 +94,23 @@ int main(int argc, char *argv[]) {
       // Build the private group name
       char private_group[80];
       strcpy(private_group, sender);
-      strcpy(private_group, "#");
+      strcat(private_group, "#");
       strcat(private_group, User);
       printf("private group name: %s\n", private_group);
 
+      // Replace '#' by '_' in the group name
+      for (int i = 0; i < 80 && private_group[i] != '\0'; i++) {
+        if (private_group[i] == '#') {
+          private_group[i] = '_';
+	}
+      }
+
       // Join the private group
       SP_join(Mbox, private_group);
-
+      //SP_join(Mbox, "client_1_ugrad9_server_1");
+      
       // Return the private group name to the client
-      struct SERVER_PRIVATE_GROUP_MSG server_response;
+      struct SERVER_PRIVATE_GROUP_RES_MSG server_response;
       server_response.msg.type = PRIVATE_GROUP_RES;
       strcpy(server_response.group_name, private_group);
       ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(server_response),
@@ -124,7 +132,7 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
 
-      /**
+      
       if (Is_reg_memb_mess(service_type)) {
         if (Is_reg_memb_mess(service_type)) {
           printf("Received REGULAR membership for group %s with %d members, "
@@ -138,7 +146,7 @@ int main(int argc, char *argv[]) {
           strcpy(private_group, "private_group");
         }
       }
-      **/
+      
     }
   }
 
