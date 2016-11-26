@@ -122,6 +122,8 @@ int main(int argc, char *argv[]) {
           printf("\nBye.\n");
           exit(0);
         }
+      } else if (client_msg.type == SEND_EMAIL) {
+        
       }
     } else if (src.type == SERVER) {
 

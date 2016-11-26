@@ -123,8 +123,8 @@ static void user_command() {
       SP_error(ret);
       Bye();
     }
-
-    printf("successfully connected to server #%d\n", index);
+    // TODO: return error message if the server is not running
+    //printf("successfully connected to server #%d\n", index);
     break;
   case 'l':
     break;
