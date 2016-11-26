@@ -13,12 +13,12 @@
 #define PRIVATE_GROUP_REQ       'p'
 #define PRIVATE_GROUP_RES       'r'
 
-/* msg from client to server */
 
 struct SOURCE {
   char source;
 };
 
+/* msg from client to server */
 struct CLIENT_MSG {
   char source;
   char type;
@@ -29,9 +29,7 @@ struct CLIENT_PRIVATE_GROUP_REQ_MSG {
 };
 
 /* msg from server to client */
-
 struct SERVER_MSG {
-  char source;
   char type;
 };
 
@@ -41,7 +39,4 @@ struct SERVER_PRIVATE_GROUP_RES_MSG {
 };
   
 
-
-
-  
 
