@@ -245,6 +245,7 @@ static void read_message() {
     printf("\nsuccessfully connected to server #%s\n", server_index);
     printf("\nUser> ");
     fflush(stdout);
+
   }
   
 }
