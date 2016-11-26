@@ -123,6 +123,7 @@ static void user_command() {
       Bye();
     }
 
+    printf("connecting to server #%d\n", index);
     break;
     
   case 'm':
@@ -135,18 +136,59 @@ static void user_command() {
     struct EMAIL email;
     email.read = 0;
     memcpy(email.from, user_name, USERNAME_LEN);
-    
+
+    /* get recipient's name */
     printf("\nTo:> ");
-    while (fgets(email.to, USERNAME_LEN, stdin) == NULL) {
-      printf("\nPlease enter the recipent's name");
+    while (fgets(email.to, USERNAME_LEN, stdin) == NULL ||
+	   (strlen(email.to) == 1 && email.to[0] == '\n')) {
+      printf("please enter the recipient's name\n");
       printf("\nTo:> ");
     }
     
+    email.to[strlen(email.to)-1] = 0; //remove enter
+    printf("recipient name: %s\n", email.to);
+
+    /* get email subject */
+    printf("\nSubject:> ");
+    while (fgets(email.subject, SUBJECT_LEN, stdin) == NULL ||
+	   (strlen(email.subject) == 1 && email.subject[0] == '\n')) {
+      printf("please enter the subject\n");
+      printf("\nSubject:> ");
+    }
+
+    email.subject[strlen(email.subject)-1] = 0; //remove enter
+    printf("subject: %s\n", email.subject);
+
+    /* get email content */
+    printf("\nContent:> ");
+    while (fgets(email.content, CONTENT_LEN, stdin) == NULL ||
+	   (strlen(email.content) == 1 && email.content[0] == '\n')) {
+      printf("please enter the content\n");
+      printf("\nContent:> ");
+    }
     
-  
-  
+    email.content[strlen(email.content)-1] = 0; //remove enter
+    printf("content: %s\n", email.content);
+
+    struct CLIENT_SEND_EMAIL_MSG send_email_msg;
+    send_email_msg.msg.source.type = CLIENT;
+    send_email_msg.msg.type = SEND_EMAIL;
+    memcpy(send_email_msg.receiver_name, email.to, sizeof(email.to));
+    send_email_msg.email = email;
+    
+    ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(send_email_msg), (char *)&send_email_msg);
+
+    if (ret < 0) {
+      SP_error(ret);
+      Bye();
+    }
+    
   break;
 
+  case 'd':
+    
+    break;
+  
   case 'l':
     break;
 
@@ -176,8 +218,7 @@ static void read_message() {
   char            mess[MAX_MESSLEN];
   int             ret;
   
-  ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups, 
-		   &mess_type, &endian_mismatch, sizeof(mess), mess);
+  ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups, &mess_type, &endian_mismatch, sizeof(mess), mess);
   if (ret < 0) {
     SP_error(ret);
     Bye();
@@ -201,7 +242,7 @@ static void read_message() {
     }
 
     status = CONNECT;
-    printf("successfully connected to server #%s\n", server_index);
+    printf("\nsuccessfully connected to server #%s\n", server_index);
     printf("\nUser> ");
     fflush(stdout);
   }
