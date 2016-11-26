@@ -7,8 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_MESSLEN 102400
-
 #define PORT "10580"
 
 static char User[80];
@@ -154,10 +152,10 @@ static void read_message() {
   
   struct SERVER_MSG msg;
   memcpy(&msg, mess, sizeof(msg));
+  
   if (msg.type == PRIVATE_GROUP_RES) {
     struct SERVER_PRIVATE_GROUP_RES_MSG private_group_res_msg;
-    memcpy(&msg, mess, sizeof(private_group_res_msg));
-    
+    memcpy(&private_group_res_msg, mess, sizeof(private_group_res_msg));
     ret = SP_join(Mbox, private_group_res_msg.group_name);
   }
   
