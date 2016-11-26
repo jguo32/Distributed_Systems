@@ -12,7 +12,7 @@ static char User[80];
 static char Spread_name[80];
 static char Private_group[MAX_GROUP_NAME];
 static mailbox Mbox;
-static char user_name[80];
+static char user_name[USERNAME_LEN];
 static char server_index[10];
 
 static void user_command();
@@ -125,8 +125,32 @@ static void user_command() {
 
     printf("successfully connected to server #%d\n", index);
     break;
+    
+  case 'm':
+
+    if (status != CONNECT) {
+      printf("you should connect server first!\n");
+      break;
+    }
+    
+    struct EMAIL email;
+    email.read = 0;
+    memcpy(email.from, user_name, USERNAME_LEN);
+    
+    printf("\nTo:> ");
+    while (fgets(email.to, USERNAME_LEN, stdin) == NULL) {
+      printf("\nPlease enter the recipent's name");
+      printf("\nTo:> ");
+    }
+    
+    
+  
+  
+  break;
+
   case 'l':
     break;
+
   case 'q':
     Bye();
     break;
@@ -178,8 +202,6 @@ static void read_message() {
     }
 
     status = CONNECT;
-
-	   private_group_res_msg.group_name);
   }
   
 }
