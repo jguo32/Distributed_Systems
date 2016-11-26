@@ -1,5 +1,6 @@
 #include "sp.h"
 
+#include "include/global.h"
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,11 +22,13 @@ static void print_menu();
 static void read_message();
 static void Bye();
 
+int ret;
+
 int main(int argc, char *argv[]) {
   char *client_index;
   char user_name[80];
   
-  int ret;
+
 
   if (argc != 2) {
     printf("Usage: client <client_index>.\n");
@@ -103,10 +106,10 @@ static void user_command() {
     strcpy(public_group, "public_group_");
     strcat(public_group, server_index);
 
-    CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
+    struct CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
     private_group_req_msg.type = PRIVATE_GROUP_REQ;
     
-    ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg));
+    ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg);
   
     if (ret < 0) {
       SP_error(ret);
@@ -150,7 +153,7 @@ static void read_message() {
     Bye();
   }
   
-  SERVER_MSG msg;
+  struct SERVER_MSG msg;
   
 }
 
