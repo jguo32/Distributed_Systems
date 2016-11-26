@@ -15,12 +15,12 @@
 
 
 struct SOURCE {
-  char source;
+  char type;
 };
 
 /* msg from client to server */
 struct CLIENT_MSG {
-  char source;
+  struct SOURCE source;
   char type;
 };
 
