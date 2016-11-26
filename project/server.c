@@ -102,13 +102,13 @@ int main(int argc, char *argv[]) {
       for (int i = 0; i < 80 && private_group[i] != '\0'; i++) {
         if (private_group[i] == '#') {
           private_group[i] = '_';
-	}
+        }
       }
 
       // Join the private group
       SP_join(Mbox, private_group);
-      //SP_join(Mbox, "client_1_ugrad9_server_1");
-      
+      // SP_join(Mbox, "client_1_ugrad9_server_1");
+
       // Return the private group name to the client
       struct SERVER_PRIVATE_GROUP_RES_MSG server_response;
       server_response.msg.type = PRIVATE_GROUP_RES;
@@ -120,8 +120,7 @@ int main(int argc, char *argv[]) {
         printf("\nBye.\n");
         exit(0);
       }
-
-
+      // TODO: leave the group when the client disconnect
     }
 
     if (Is_membership_mess(service_type)) {
@@ -132,32 +131,41 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
 
-      
       if (Is_reg_memb_mess(service_type)) {
-        if (Is_reg_memb_mess(service_type)) {
-          printf("Received REGULAR membership for group %s with %d members, "
-                 "where I am member %d:\n",
-                 sender, num_groups, mess_type);
-          for (int i = 0; i < num_groups; i++)
-            printf("\t%s\n", &target_groups[i][0]);
-          printf("grp id is %d %d %d\n", memb_info.gid.id[0],
-                 memb_info.gid.id[1], memb_info.gid.id[2]);
-          char private_group[80];
-          strcpy(private_group, "private_group");
+        printf("Received REGULAR membership for group %s with %d members, "
+               "where I am member %d:\n",
+               sender, num_groups, mess_type);
+
+        for (int i = 0; i < num_groups; i++)
+          printf("\t%s\n", &target_groups[i][0]);
+
+        /*
+        printf("grp id is %d %d %d\n", memb_info.gid.id[0],
+               memb_info.gid.id[1], memb_info.gid.id[2]);
+        **/
+
+        // Leave the group if it is a private group and current server is
+        // the only member
+        if (Is_caused_leave_mess(service_type)) {
+          printf("Leave mess detected.\n");
+          if (num_groups == 1 &&
+              strncmp("_client", sender, strlen("_client")) == 0) {
+            SP_leave(Mbox, sender);
+            printf("Left private group %s\n", sender);
+          }
         }
       }
-      
     }
+
+    // Event handler skeleton
+    /*
+    E_init();
+
+    E_attach_fd(Mbox, READ_FD, read_message, 0, NULL, HIGH_PRIORITY);
+
+    E_handle_events();
+    **/
   }
-
-  // Event handler skeleton
-  E_init();
-
-  E_attach_fd(Mbox, READ_FD, read_message, 0, NULL, HIGH_PRIORITY);
-
-  E_handle_events();
-
-  return (0);
 }
 
 static void read_message() {}
