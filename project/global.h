@@ -7,6 +7,8 @@
 #define SERVER 's'
 
 #define USERNAME_LEN       80
+#define SUBJECT_LEN        200
+#define CONTENT_LEN        1000
 #define GROUPNAME_LEN      MAX_GROUP_NAME
 // char user_name[USERNAME_LEN];
 
@@ -21,7 +23,16 @@
 #define SEND_EMAIL              'e'
 
 
+/* email struct */
+struct EMAIL {
+  int read;
+  char to[USERNAME_LEN];
+  char from[USERNAME_LEN];
+  char subject[SUBJECT_LEN];
+  char content[CONTENT_LEN];
+};
 
+/* check msg from server or client */
 struct SOURCE {
   char type;
 };
@@ -36,13 +47,15 @@ struct CLIENT_PRIVATE_GROUP_REQ_MSG {
   struct CLIENT_MSG msg;
 };
 
+struct CLIENT_SEND_EMAIL_MSG {
+  struct CLIENT_MSG msg;
+  char receiver_name[USERNAME_LEN];
+  struct EMAIL email;
+};  
+
 /* msg from server to client */
 struct SERVER_MSG {
   char type;
-};
-
-struct test {
-  struct SERVER_MSG msg;
 };
 
 struct SERVER_PRIVATE_GROUP_RES_MSG {
@@ -50,5 +63,3 @@ struct SERVER_PRIVATE_GROUP_RES_MSG {
   char group_name[GROUPNAME_LEN];
 };
   
-
-
