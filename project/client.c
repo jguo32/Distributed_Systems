@@ -203,6 +203,7 @@ static void read_message() {
     status = CONNECT;
     printf("successfully connected to server #%s\n", server_index);
     printf("\nUser> ");
+    fflush(stdout);
   }
   
 }
