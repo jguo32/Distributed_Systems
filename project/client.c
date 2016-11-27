@@ -22,6 +22,7 @@ static void Bye();
 
 char status = INIT;
 char private_group_name[GROUPNAME_LEN];
+//struct EMAIL_MSG[EMAIL_LIST_MAX_LEN];
 
 int main(int argc, char *argv[]) {
   char *client_index;
@@ -82,123 +83,129 @@ static void user_command() {
 
   switch(command[0]) {
   case 'u':
-    ret = sscanf( &command[2], "%s", user_name );
-    if (ret < 1) {
-      printf("Invalid user name.\n");
+    {
+      ret = sscanf( &command[2], "%s", user_name );
+      if (ret < 1) {
+	printf("Invalid user name.\n");
+	break;
+      }
+      printf("User logged in as: %s\n", user_name);
+      status = LOGIN;
       break;
     }
-    printf("User logged in as: %s\n", user_name);
-    status = LOGIN;
-    break;
-
+    
   case 'c':
-    ret = sscanf( &command[2], "%s", server_index);
-    int index = atoi(server_index);
-    if (ret < 1 || !(index <= 5 && index >= 1)) {
-      printf("Invalid server index.\n");
-      break;	
-    }
+    {
+      ret = sscanf( &command[2], "%s", server_index);
+      int index = atoi(server_index);
+      if (ret < 1 || !(index <= 5 && index >= 1)) {
+	printf("Invalid server index.\n");
+	break;	
+      }
 
-    if (status  == CONNECT) {
-      ret = SP_leave(Mbox, private_group_name);
+      if (status  == CONNECT) {
+	ret = SP_leave(Mbox, private_group_name);
+	if (ret < 0) {
+	  SP_error(ret);
+	  Bye();
+	}
+      }
+
+      // Join the public group of the designated server
+      char public_group[80];
+      strcpy(public_group, "public_group_");
+      strcat(public_group, server_index);
+
+      struct CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
+      private_group_req_msg.msg.source.type = CLIENT;
+      private_group_req_msg.msg.type = PRIVATE_GROUP_REQ;
+    
+      ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg);
+  
       if (ret < 0) {
 	SP_error(ret);
 	Bye();
       }
-    }
 
-    // Join the public group of the designated server
-    char public_group[80];
-    strcpy(public_group, "public_group_");
-    strcat(public_group, server_index);
-
-    struct CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
-    private_group_req_msg.msg.source.type = CLIENT;
-    private_group_req_msg.msg.type = PRIVATE_GROUP_REQ;
-    
-    ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg);
-  
-    if (ret < 0) {
-      SP_error(ret);
-      Bye();
-    }
-
-    printf("connecting to server #%d\n", index);
-    break;
-    
-  case 'm':
-
-    if (status != CONNECT) {
-      printf("you should connect server first!\n");
+      printf("connecting to server #%d\n", index);
       break;
     }
     
-    struct EMAIL email;
-    email.read = 0;
-    memcpy(email.from, user_name, USERNAME_LEN);
+  case 'm':
+    {
+      if (status != CONNECT) {
+	printf("you should connect server first!\n");
+	break;
+      }
+    
+      struct EMAIL email;
+      email.read = 0;
+      memcpy(email.from, user_name, USERNAME_LEN);
 
-    /* get recipient's name */
-    printf("\nTo:> ");
-    while (fgets(email.to, USERNAME_LEN, stdin) == NULL ||
-	   (strlen(email.to) == 1 && email.to[0] == '\n')) {
-      printf("please enter the recipient's name\n");
+      /* get recipient's name */
       printf("\nTo:> ");
-    }
+      while (fgets(email.to, USERNAME_LEN, stdin) == NULL ||
+	     (strlen(email.to) == 1 && email.to[0] == '\n')) {
+	printf("please enter the recipient's name\n");
+	printf("\nTo:> ");
+      }
     
-    email.to[strlen(email.to)-1] = 0; //remove enter
-    printf("recipient name: %s\n", email.to);
+      email.to[strlen(email.to)-1] = 0; //remove enter
+      printf("recipient name: %s\n", email.to);
 
-    /* get email subject */
-    printf("\nSubject:> ");
-    while (fgets(email.subject, SUBJECT_LEN, stdin) == NULL ||
-	   (strlen(email.subject) == 1 && email.subject[0] == '\n')) {
-      printf("please enter the subject\n");
+      /* get email subject */
       printf("\nSubject:> ");
-    }
+      while (fgets(email.subject, SUBJECT_LEN, stdin) == NULL ||
+	     (strlen(email.subject) == 1 && email.subject[0] == '\n')) {
+	printf("please enter the subject\n");
+	printf("\nSubject:> ");
+      }
 
-    email.subject[strlen(email.subject)-1] = 0; //remove enter
-    printf("subject: %s\n", email.subject);
+      email.subject[strlen(email.subject)-1] = 0; //remove enter
+      printf("subject: %s\n", email.subject);
 
-    /* get email content */
-    printf("\nContent:> ");
-    while (fgets(email.content, CONTENT_LEN, stdin) == NULL ||
-	   (strlen(email.content) == 1 && email.content[0] == '\n')) {
-      printf("please enter the content\n");
+      /* get email content */
       printf("\nContent:> ");
+      while (fgets(email.content, CONTENT_LEN, stdin) == NULL ||
+	     (strlen(email.content) == 1 && email.content[0] == '\n')) {
+	printf("please enter the content\n");
+	printf("\nContent:> ");
+      }
+    
+      email.content[strlen(email.content)-1] = 0; //remove enter
+      printf("content: %s\n", email.content);
+
+      struct CLIENT_SEND_EMAIL_MSG send_email_msg;
+      send_email_msg.msg.source.type = CLIENT;
+      send_email_msg.msg.type = SEND_EMAIL;
+      memcpy(send_email_msg.receiver_name, email.to, sizeof(email.to));
+      send_email_msg.email = email;
+    
+      ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(send_email_msg), (char *)&send_email_msg);
+
+      if (ret < 0) {
+	SP_error(ret);
+	Bye();
+      }
+    
+      break;
     }
     
-    email.content[strlen(email.content)-1] = 0; //remove enter
-    printf("content: %s\n", email.content);
-
-    struct CLIENT_SEND_EMAIL_MSG send_email_msg;
-    send_email_msg.msg.source.type = CLIENT;
-    send_email_msg.msg.type = SEND_EMAIL;
-    memcpy(send_email_msg.receiver_name, email.to, sizeof(email.to));
-    send_email_msg.email = email;
-    
-    ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(send_email_msg), (char *)&send_email_msg);
-
-    if (ret < 0) {
-      SP_error(ret);
-      Bye();
-    }
-    
-  break;
-  
   case 'l':
-    struct CLIENT_EMAIL_LIST_REQ_MSG email_list_req_msg;
-    email_list_req_msg.msg.source.type = CLIENT;
-    email_list_req_msg.msg.type = EMAIL_LIST_REQ;
-    memcpy(send_email_msg.receiver_name, email.to, sizeof(email.to));
-    ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(email_list_req_msg), (char *)&email_list_req_msg);
+    {
+      struct CLIENT_EMAIL_LIST_REQ_MSG email_list_req_msg;
+      email_list_req_msg.msg.source.type = CLIENT;
+      email_list_req_msg.msg.type = EMAIL_LIST_REQ;
+      memcpy(email_list_req_msg.receiver_name, user_name, USERNAME_LEN);
+      ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(email_list_req_msg), (char *)&email_list_req_msg);
 
-    if (ret < 0) {
-      SP_error(ret);
-      Bye();
-    }
+      if (ret < 0) {
+	SP_error(ret);
+	Bye();
+      }
     
-    break;
-
+      break;
+    }
   
   case 'd':
     break;  

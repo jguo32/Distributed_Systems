@@ -52,14 +52,13 @@ struct CLIENT_PRIVATE_GROUP_REQ_MSG {
 struct CLIENT_EMAIL_LIST_REQ_MSG {
   struct CLIENT_MSG msg;
   char receiver_name[USERNAME_LEN];
-}
+};
 
 struct CLIENT_SEND_EMAIL_MSG {
   struct CLIENT_MSG msg;
   char receiver_name[USERNAME_LEN];
   struct EMAIL email;
 };  
-
 
 
 /* msg from server to client */
