@@ -285,7 +285,7 @@ static void read_message() {
     struct SERVER_EMAIL_LIST_RES_MSG email_list_res_msg;
     memcpy(&email_list_res_msg, mess, sizeof(email_list_res_msg));
     int num = email_list_res_msg.email_num;
-    memcpy(email_lst, email_list_res_msg.email_list, num * sizeof(struct SERVER_EMAIL_LIST_RES_MSG));
+    memcpy(email_list, email_list_res_msg.email_list, num * sizeof(struct SERVER_EMAIL_LIST_RES_MSG));
 
 
     printf("user: %s, server index: %s\n", user_name, server_index);
@@ -295,13 +295,13 @@ static void read_message() {
 
     for (int i = 0; i < num; i ++) {
       char *read = "unread";
-      if (email_list_res_msg.email.read == 1) 
+      if (email_list[i].email.read == 1)   
 	read = "read";
 	
       printf("%-5d %-10s %-20s %-100s\n",
 	     i, read,
-	     email_list_res_msg.email.from,
-	     email_list_res_msg.email.subject);
+	     email_list[i].email.from,
+	     email_list[i].email.subject);
     }
   }
   
