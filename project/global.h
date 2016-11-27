@@ -39,7 +39,7 @@ struct EMAIL {
 
 /* structs for the server to maintain user/email list */
 struct EMAIL_MSG {
-  int server_id;
+  int server_index;
   int email_index;
   struct EMAIL email;
 };
@@ -94,7 +94,7 @@ struct SERVER_PRIVATE_GROUP_RES_MSG {
 
 struct SERVER_EMAIL_LIST_RES_MSG {
   struct SERVER_MSG msg;
-  int num;
-  
+  int email_num;
+  struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN]; 
 };
 

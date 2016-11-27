@@ -274,7 +274,7 @@ static void read_message() {
   } else if (msg.type == EMAIL_LIST_RES) {
     struct SERVER_EMAIL_LIST_RES_MSG email_list_res_msg;
     memcpy(&email_list_res_msg, mess, sizeof(email_list_res_msg));
-    int num = email_list_res_msg.num;
+    int num = email_list_res_msg.email_num;
 
     
   }
