@@ -290,7 +290,7 @@ static void read_message() {
 
     printf("user: %s, server index: %s\n", user_name, server_index);
     
-    printf("%-5d %-10s %-20s %-100s\n",
+    printf("%-5s %-10s %-20s %-100s\n",
 	   "no", "status", "from", "subject");
 
     for (int i = 0; i < num; i ++) {
