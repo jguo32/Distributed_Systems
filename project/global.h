@@ -39,7 +39,7 @@ struct EMAIL {
 
 /* structs for the server to maintain user/email list */
 struct EMAIL_MSG {
-  int server_id;
+  int server_index;
   int email_index;
   struct EMAIL email;
 };

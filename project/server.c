@@ -9,38 +9,20 @@
 #define PORT "10580"
 #define GLOBAL_GROUP "GLOBAL"
 
-/**
-struct EMAIL_MSG_NODE {
-  struct EMAIL_MSG email_msg;
-  struct EMAIL_MSG_NODE *next;
-};
-
-struct EMAIL_MSG {
-  int server_id;
-  int email_index;
-  struct EMAIL email;
-};
-
-struct USER_NODE {
-  char user_name[80];
-  struct EMAIL_MSG_NODE email_node;
-  struct USER_NODE *next;
-};
-*/
-
 static char User[80];
 static char Spread_name[80];
 static char Private_group[MAX_GROUP_NAME];
 static mailbox Mbox;
 
+void print_email_list(struct EMAIL_MSG_NODE head);
 void print_user_list(struct USER_NODE *user);
-static void print_menu();
 static void read_message();
 static void Bye();
 
 int main(int argc, char *argv[]) {
   static int index_matrix[5][5]; // Lamport index matrix
-  struct USER_NODE *user_list_header = (struct USER_NODE*) malloc(sizeof(struct USER_NODE));
+  struct USER_NODE *user_list_head =
+      (struct USER_NODE *)malloc(sizeof(struct USER_NODE));
   char *server_index;
 
   static char mess[MAX_MESSLEN];
@@ -88,14 +70,6 @@ int main(int argc, char *argv[]) {
   printf("Server #%s successfully launched, public group name: %s.\n",
          server_index, public_group);
 
-  // Test code
-  /**
-  char send_buf[80];
-  strcpy(send_buf, "hello world....");
-  ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP, 0, sizeof(send_buf),
-                     send_buf);
-  **/
-
   // May use Spread event handler
   membership_info memb_info;
   while (1) {
@@ -114,6 +88,7 @@ int main(int argc, char *argv[]) {
       struct CLIENT_MSG client_msg;
       memcpy(&client_msg, mess, sizeof(client_msg));
 
+      /* Establish connection with client */
       if (client_msg.type == PRIVATE_GROUP_REQ) {
         // Build the private group name
         char private_group[80];
@@ -143,17 +118,16 @@ int main(int argc, char *argv[]) {
           printf("\nBye.\n");
           exit(0);
         }
+        /* Process client send email request */
       } else if (client_msg.type == SEND_EMAIL) {
         struct CLIENT_SEND_EMAIL_MSG send_email_msg;
         memcpy(&send_email_msg, mess, sizeof(send_email_msg));
-        // TODO: might have to use memcpy here
         char *user_name = send_email_msg.receiver_name;
 
         // Check if the receiver is in the server's user list
-        struct EMAIL_MSG_NODE *user_email_head = NULL;
-        struct USER_NODE *user_list_node = user_list_header;
-        while (user_list_node->next) {
-          user_list_node = user_list_node->next;
+        struct EMAIL_MSG_NODE *user_email_head;
+        struct USER_NODE *user_list_node = user_list_head;
+        while (user_list_node) {
           if (strcmp(user_list_node->user_name, user_name) == 0) {
             user_email_head = &user_list_node->email_node;
             break;
@@ -162,16 +136,20 @@ int main(int argc, char *argv[]) {
 
         // Create a new mail node
         // TODO: add server_id and index to email_node, wrap with EMAIL_MSG
-        struct EMAIL_MSG_NODE *new_email_node = (struct EMAIL_MSG_NODE*) malloc(sizeof(struct EMAIL_MSG_NODE));
+        struct EMAIL_MSG_NODE *new_email_node =
+            (struct EMAIL_MSG_NODE *)malloc(sizeof(struct EMAIL_MSG_NODE));
         new_email_node->email_msg.email = send_email_msg.email;
+        new_email_node->email_msg.server_index = atoi(server_index);
 
         // Add a new user node if it is not in the list
         if (!user_email_head) {
-          struct USER_NODE *new_user = (struct USER_NODE*) malloc(sizeof(struct EMAIL_MSG_NODE));
+          struct USER_NODE *new_user =
+              (struct USER_NODE *)malloc(sizeof(struct EMAIL_MSG_NODE));
           strcpy(new_user->user_name, user_name);
 
-          // Create a new header mail node for the new user
-          struct EMAIL_MSG_NODE *new_email_head = (struct EMAIL_MSG_NODE*) malloc(sizeof(struct EMAIL_MSG_NODE));
+          // Create a new head mail node for the new user
+          struct EMAIL_MSG_NODE *new_email_head =
+              (struct EMAIL_MSG_NODE *)malloc(sizeof(struct EMAIL_MSG_NODE));
           new_email_head->next = new_email_node;
 
           new_user->email_node = *new_email_head;
@@ -179,12 +157,62 @@ int main(int argc, char *argv[]) {
 
         } else {
           // Append the new mail to the end of the existing mail list
-	  new_email_node->next = user_email_head->next;
+          new_email_node->next = user_email_head->next;
           user_email_head->next = new_email_node;
         }
 
-	print_user_list(user_list_header);
+        // TODO: multicast to all other servers
+        // TODO: write email/updates into disks
+        print_user_list(user_list_head);
+        /* Process list email request */
+      } else if (client_msg.type == EMAIL_LIST_REQ) {
+        struct CLIENT_EMAIL_LIST_REQ_MSG list_req;
+        memcpy(&list_req, mess, sizeof(list_req));
+        char *user_name = list_req.receiver_name;
+
+        // Look up the user in the list
+        struct EMAIL_MSG_NODE *user_email_head;
+        struct USER_NODE *user_list_node = user_list_head;
+
+        while (user_list_node) {
+          if (strcmp(user_list_node->user_name, user_name) == 0) {
+            printf("User %s found in the list.\n", user_name);
+            user_email_head = &user_list_node->email_node;
+            break;
+          }
+          user_list_node = user_list_node->next;
+        }
+
+        struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
+        int email_num = 0;
+
+        if (!user_email_head) {
+          printf("User %s not found!\n", user_name);
+        } else {
+          struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
+          while (user_email_node) {
+            email_list[email_num++] = user_email_node->email_msg;
+            user_email_node = user_email_node->next;
+          }
+        }
+
+	// Form & send the response message
+	struct SERVER_EMAIL_LIST_RES_MSG list_response;
+	list_response.msg.type = EMAIL_LIST_RES;
+	//list_response.email_list = email_list;
+	memcpy(&list_response.email_list, email_list, sizeof(email_list));
+	list_response.email_num = email_num;
+        
+	ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(list_response), (char *) &list_response);
+	if (ret < 0) {
+          SP_error(ret);
+	  printf("\nBye.\n");
+	  exit(0);
+	}
+      
       }
+
+      /* Process server request/updates */
     } else if (src.type == SERVER) {
       // Process update messages from other servers
     }
@@ -244,8 +272,6 @@ void print_email_list(struct EMAIL_MSG_NODE head) {
 }
 
 static void read_message() {}
-
-static void print_menu() { printf("\n"); }
 
 static void Bye() {
   printf("\nBye.\n");
