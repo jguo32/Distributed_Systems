@@ -9,13 +9,16 @@
 #define PORT "10580"
 #define GLOBAL_GROUP "GLOBAL"
 
+/**
 struct EMAIL_MSG_NODE {
-  struct EMAIL email;
+  struct EMAIL_MSG email_msg;
   struct EMAIL_MSG_NODE *next;
 };
 
 struct EMAIL_MSG {
-  // TODO
+  int server_id;
+  int email_index;
+  struct EMAIL email;
 };
 
 struct USER_NODE {
@@ -23,6 +26,7 @@ struct USER_NODE {
   struct EMAIL_MSG_NODE email_node;
   struct USER_NODE *next;
 };
+*/
 
 static char User[80];
 static char Spread_name[80];
@@ -159,7 +163,7 @@ int main(int argc, char *argv[]) {
         // Create a new mail node
         // TODO: add server_id and index to email_node, wrap with EMAIL_MSG
         struct EMAIL_MSG_NODE *new_email_node = (struct EMAIL_MSG_NODE*) malloc(sizeof(struct EMAIL_MSG_NODE));
-        new_email_node->email = send_email_msg.email;
+        new_email_node->email_msg.email = send_email_msg.email;
 
         // Add a new user node if it is not in the list
         if (!user_email_head) {
@@ -179,8 +183,7 @@ int main(int argc, char *argv[]) {
           user_email_head->next = new_email_node;
         }
 
-	//print_user_list(user_list_header);
-	// Print all content of received email
+	print_user_list(user_list_header);
       }
     } else if (src.type == SERVER) {
       // Process update messages from other servers
@@ -235,7 +238,7 @@ void print_user_list(struct USER_NODE *user) {
 void print_email_list(struct EMAIL_MSG_NODE head) {
   struct EMAIL_MSG_NODE *cur = head.next;
   while (cur) {
-    printf("Mail with content %s \n", cur->email.content);
+    printf("Mail with content %s \n", cur->email_msg.email.content);
     cur = cur->next;
   }
 }
