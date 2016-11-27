@@ -145,12 +145,12 @@ int main(int argc, char *argv[]) {
         char *user_name = send_email_msg.receiver_name;
 
         // Check if the receiver is in the server's user list
-        struct EMAIL_MSG_NODE *user_email_node = NULL;
+        struct EMAIL_MSG_NODE *user_email_head = NULL;
         struct USER_NODE *user_list_node = user_list_header;
         while (user_list_node->next != NULL) {
           user_list_node = user_list_node->next;
           if (strcmp(user_list_node->user_name, user_name) == 0) {
-            user_email_node = &user_list_node->email_node;
+            user_email_head = &user_list_node->email_node;
             break;
           }
         }
@@ -159,9 +159,10 @@ int main(int argc, char *argv[]) {
         // TODO: add server_id and index to email_node, wrap with EMAIL_MSG
         struct EMAIL_MSG_NODE new_email_node;
         new_email_node.email = send_email_msg.email;
+	new_email_node.next = NULL;
 
         // Add a new user node if it is not in the list
-        if (user_email_node == NULL) {
+        if (user_email_head == NULL) {
           struct USER_NODE new_user;
           strcpy(new_user.user_name, user_name);
           // Create a new header mail node for the new user
@@ -173,15 +174,21 @@ int main(int argc, char *argv[]) {
 
         } else {
           // Append the new mail to the end of the existing mail list
-          while (user_email_node->next != NULL) {
+          /**
+	  while (user_email_node->next != NULL) {
             user_email_node = user_email_node->next;
           }
-          user_email_node->next = &new_email_node;
+          user_email_head->next = &new_email_node;
+	  */
+	  new_email_node.next = user_email_head->next;
         }
 
+	print_user_list(user_list_header);
+	// Print all content of received email
+	/**
         printf("Received mail from %s, to %s, with subject %s, content %s\n",
                send_email_msg.email.from, send_email_msg.email.to,
-               send_email_msg.email.subject, send_email_msg.email.content);
+               send_email_msg.email.subject, send_email_msg.email.content); */
       }
     } else if (src.type == SERVER) {
       // Process update messages from other servers
@@ -223,17 +230,19 @@ int main(int argc, char *argv[]) {
   }
 }
 
-static void print_user_list(struct USER_NODE *user) {
+void print_user_list(struct USER_NODE *user) {
+  user = user->next;
   while (user != NULL) {
     printf("User %s in the list.\n", user->user_name);
+    print_email_list(user->email_node);
     user = user->next;
   }
 }
 
-static void print_email_list(struct EMAIL_MSG_NODE *head) {
-  struct EMAIL_MSG_NODE *cur = head->next;
+void print_email_list(struct EMAIL_MSG_NODE head) {
+  struct EMAIL_MSG_NODE *cur = head.next;
   while (cur != NULL) {
-    printf("Mail with content %s  ", cur->email.content);
+    printf("Mail with content %s \n", cur->email.content);
     cur = cur->next;
   }
 }
