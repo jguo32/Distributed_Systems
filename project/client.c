@@ -184,14 +184,25 @@ static void user_command() {
     }
     
   break;
-
-  case 'd':
-    
-    break;
   
   case 'l':
+    struct CLIENT_EMAIL_LIST_REQ_MSG email_list_req_msg;
+    email_list_req_msg.msg.source.type = CLIENT;
+    email_list_req_msg.msg.type = EMAIL_LIST_REQ;
+    memcpy(send_email_msg.receiver_name, email.to, sizeof(email.to));
+    ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(email_list_req_msg), (char *)&email_list_req_msg);
+
+    if (ret < 0) {
+      SP_error(ret);
+      Bye();
+    }
+    
     break;
 
+  
+  case 'd':
+    break;  
+    
   case 'q':
     Bye();
     break;
