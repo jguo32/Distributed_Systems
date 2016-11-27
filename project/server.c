@@ -175,12 +175,12 @@ int main(int argc, char *argv[]) {
 
         } else {
           // Append the new mail to the end of the existing mail list
-    new_email_node->next = user_email_head->next;
+	  new_email_node->next = user_email_head->next;
           user_email_head->next = new_email_node;
         }
 
-  //print_user_list(user_list_header);
-  // Print all content of received email
+	//print_user_list(user_list_header);
+	// Print all content of received email
       }
     } else if (src.type == SERVER) {
       // Process update messages from other servers
