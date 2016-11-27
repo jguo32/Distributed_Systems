@@ -11,7 +11,7 @@
 #define SUBJECT_LEN          200
 #define CONTENT_LEN          1000
 #define GROUPNAME_LEN        MAX_GROUP_NAME
-#define EMAIL_LIST_MAX_LEN   100
+#define EMAIL_LIST_MAX_LEN   50
 
 // char user_name[USERNAME_LEN];
 
