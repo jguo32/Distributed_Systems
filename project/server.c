@@ -29,13 +29,14 @@ static char Spread_name[80];
 static char Private_group[MAX_GROUP_NAME];
 static mailbox Mbox;
 
+void print_user_list(struct USER_NODE *user);
 static void print_menu();
 static void read_message();
 static void Bye();
 
 int main(int argc, char *argv[]) {
   static int index_matrix[5][5]; // Lamport index matrix
-  struct USER_NODE *user_list_header = malloc(sizeof(struct USER_NODE));
+  struct USER_NODE *user_list_header = (struct USER_NODE*) malloc(sizeof(struct USER_NODE));
   char *server_index;
 
   static char mess[MAX_MESSLEN];
@@ -141,13 +142,13 @@ int main(int argc, char *argv[]) {
       } else if (client_msg.type == SEND_EMAIL) {
         struct CLIENT_SEND_EMAIL_MSG send_email_msg;
         memcpy(&send_email_msg, mess, sizeof(send_email_msg));
-        // TODO: memcpy here
+        // TODO: might have to use memcpy here
         char *user_name = send_email_msg.receiver_name;
 
         // Check if the receiver is in the server's user list
         struct EMAIL_MSG_NODE *user_email_head = NULL;
         struct USER_NODE *user_list_node = user_list_header;
-        while (user_list_node->next != NULL) {
+        while (user_list_node->next) {
           user_list_node = user_list_node->next;
           if (strcmp(user_list_node->user_name, user_name) == 0) {
             user_email_head = &user_list_node->email_node;
@@ -157,38 +158,29 @@ int main(int argc, char *argv[]) {
 
         // Create a new mail node
         // TODO: add server_id and index to email_node, wrap with EMAIL_MSG
-        struct EMAIL_MSG_NODE new_email_node;
-        new_email_node.email = send_email_msg.email;
-	new_email_node.next = NULL;
+        struct EMAIL_MSG_NODE *new_email_node = (struct EMAIL_MSG_NODE*) malloc(sizeof(struct EMAIL_MSG_NODE));
+        new_email_node->email = send_email_msg.email;
 
         // Add a new user node if it is not in the list
-        if (user_email_head == NULL) {
-          struct USER_NODE new_user;
-          strcpy(new_user.user_name, user_name);
-          // Create a new header mail node for the new user
-          struct EMAIL_MSG_NODE new_email_head;
-          new_email_head.next = &new_email_node;
+        if (!user_email_head) {
+          struct USER_NODE *new_user = (struct USER_NODE*) malloc(sizeof(struct EMAIL_MSG_NODE));
+          strcpy(new_user->user_name, user_name);
 
-          new_user.email_node = new_email_head;
-          user_list_node->next = &new_user;
+          // Create a new header mail node for the new user
+          struct EMAIL_MSG_NODE *new_email_head = (struct EMAIL_MSG_NODE*) malloc(sizeof(struct EMAIL_MSG_NODE));
+          new_email_head->next = new_email_node;
+
+          new_user->email_node = *new_email_head;
+          user_list_node->next = new_user;
 
         } else {
           // Append the new mail to the end of the existing mail list
-          /**
-	  while (user_email_node->next != NULL) {
-            user_email_node = user_email_node->next;
-          }
-          user_email_head->next = &new_email_node;
-	  */
-	  new_email_node.next = user_email_head->next;
+	  new_email_node->next = user_email_head->next;
+          user_email_head->next = new_email_node;
         }
 
-	print_user_list(user_list_header);
+	//print_user_list(user_list_header);
 	// Print all content of received email
-	/**
-        printf("Received mail from %s, to %s, with subject %s, content %s\n",
-               send_email_msg.email.from, send_email_msg.email.to,
-               send_email_msg.email.subject, send_email_msg.email.content); */
       }
     } else if (src.type == SERVER) {
       // Process update messages from other servers
@@ -230,9 +222,10 @@ int main(int argc, char *argv[]) {
   }
 }
 
+// Tester methods
 void print_user_list(struct USER_NODE *user) {
   user = user->next;
-  while (user != NULL) {
+  while (user) {
     printf("User %s in the list.\n", user->user_name);
     print_email_list(user->email_node);
     user = user->next;
@@ -241,7 +234,7 @@ void print_user_list(struct USER_NODE *user) {
 
 void print_email_list(struct EMAIL_MSG_NODE head) {
   struct EMAIL_MSG_NODE *cur = head.next;
-  while (cur != NULL) {
+  while (cur) {
     printf("Mail with content %s \n", cur->email.content);
     cur = cur->next;
   }
