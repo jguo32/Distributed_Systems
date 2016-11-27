@@ -23,7 +23,8 @@ static void Bye();
 
 char status = INIT;
 char private_group_name[GROUPNAME_LEN];
-//struct EMAIL_MSG[EMAIL_LIST_MAX_LEN];
+struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
+int email_num = -1;
 
 int main(int argc, char *argv[]) {
   char *client_index;
@@ -210,8 +211,17 @@ static void user_command() {
 
   case 'r':
     {
+      if (email_num < 0) {
+	printf("you should request email lst first.\n");
+	break;
+      }
+      
       ret = sscanf( &command[2], "%s", email_no);
       int email_no = atoi(email_no);
+      if (email_no <= 0 || email_no > email_num) {
+	printf("invalid email number");
+      }
+
     }
     break;
     
@@ -274,9 +284,24 @@ static void read_message() {
   } else if (msg.type == EMAIL_LIST_RES) {
     struct SERVER_EMAIL_LIST_RES_MSG email_list_res_msg;
     memcpy(&email_list_res_msg, mess, sizeof(email_list_res_msg));
-    int num = email_list_res_msg.num;
+    int num = email_list_res_msg.email_num;
+    memcpy(email_lst, email_list_res_msg.email_list, num * sizeof(struct SERVER_EMAIL_LIST_RES_MSG));
 
+    printf("user: %s, server index: %s\n", user_name, server_index);
     
+    printf("%-5d %-10s %-20s %-100s\n",
+	   "no", "status", "from", "subject");
+
+    for (int i = 0; i < num; i ++) {
+      char *read = "unread";
+      if (email_list_res_msg.email.read == 1) 
+	read = "read";
+	
+      printf("%-5d %-10s %-20s %-100s\n",
+	     i, read,
+	     email_list_res_msg.email.from,
+	     email_list_res_msg.email.subject);
+    }
   }
   
 }

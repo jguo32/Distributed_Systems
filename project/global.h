@@ -94,7 +94,7 @@ struct SERVER_PRIVATE_GROUP_RES_MSG {
 
 struct SERVER_EMAIL_LIST_RES_MSG {
   struct SERVER_MSG msg;
-  int num;
-  
+  int email_num;
+  struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
 };
 
