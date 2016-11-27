@@ -14,6 +14,7 @@ static char Private_group[MAX_GROUP_NAME];
 static mailbox Mbox;
 static char user_name[USERNAME_LEN];
 static char server_index[10];
+static char email_no[10];
 
 static void user_command();
 static void print_menu();
@@ -206,7 +207,14 @@ static void user_command() {
     
       break;
     }
-  
+
+  case 'r':
+    {
+      ret = sscanf( &command[2], "%s", email_no);
+      int email_no = atoi(email_no);
+    }
+    break;
+    
   case 'd':
     break;  
     
@@ -263,7 +271,12 @@ static void read_message() {
     printf("\nsuccessfully connected to server #%s\n", server_index);
     printf("\nUser> ");
     fflush(stdout);
+  } else if (msg.type == EMAIL_LIST_RES) {
+    struct SERVER_EMAIL_LIST_RES_MSG email_list_res_msg;
+    memcpy(&email_list_res_msg, mess, sizeof(email_list_res_msg));
+    int num = email_list_res_msg.num;
 
+    
   }
   
 }

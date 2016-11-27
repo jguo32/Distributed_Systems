@@ -23,6 +23,7 @@
 #define PRIVATE_GROUP_RES       'r'
 #define SEND_EMAIL              'e'
 #define EMAIL_LIST_REQ          'l'
+#define EMAIL_LIST_RES          'm'
 
 
 /* email struct */
@@ -70,4 +71,9 @@ struct SERVER_PRIVATE_GROUP_RES_MSG {
   struct SERVER_MSG msg;
   char group_name[GROUPNAME_LEN];
 };
+
+struct SERVER_EMAIL_LIST_RES_MSG {
+  struct SERVER_MSG msg;
+  int num;
   
+};
