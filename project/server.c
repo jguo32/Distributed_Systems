@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
         char *user_name = send_email_msg.receiver_name;
 
         // Check if the receiver is in the server's user list
-        struct EMAIL_MSG_NODE *user_email_head;
+        struct EMAIL_MSG_NODE *user_email_head = NULL;
         struct USER_NODE *user_list_node = user_list_head;
         while (user_list_node) {
           if (strcmp(user_list_node->user_name, user_name) == 0) {
@@ -168,15 +168,15 @@ int main(int argc, char *argv[]) {
       } else if (client_msg.type == EMAIL_LIST_REQ) {
         struct CLIENT_EMAIL_LIST_REQ_MSG list_req;
         memcpy(&list_req, mess, sizeof(list_req));
+        
         char *user_name = list_req.receiver_name;
 
         // Look up the user in the list
-        struct EMAIL_MSG_NODE *user_email_head;
+        struct EMAIL_MSG_NODE *user_email_head = NULL;
         struct USER_NODE *user_list_node = user_list_head;
-
-        while (user_list_node) {
+        
+        while (user_list_node != NULL && 0) {
           if (strcmp(user_list_node->user_name, user_name) == 0) {
-            printf("User %s found in the list.\n", user_name);
             user_email_head = &user_list_node->email_node;
             break;
           }
@@ -186,7 +186,7 @@ int main(int argc, char *argv[]) {
         struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
         int email_num = 0;
 
-        if (!user_email_head) {
+        if (user_email_head == NULL) {
           printf("User %s not found!\n", user_name);
         } else {
           struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
