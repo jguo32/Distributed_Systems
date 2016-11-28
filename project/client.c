@@ -236,9 +236,7 @@ static void user_command() {
 	SP_error(ret);
 	Bye();
       }
-      
-      email_num = -1;
-
+          
     }
     
     break;
@@ -252,7 +250,7 @@ static void user_command() {
       
       ret = sscanf( &command[2], "%s", email_no);
       int no = atoi(email_no) - 1;
-      if (no <= 0 || no > email_num) {
+      if (no < 0 || no >= email_num) {
 	printf("invalid email number");
 	break;
       }
@@ -270,6 +268,7 @@ static void user_command() {
 	SP_error(ret);
 	Bye();
       }
+
       
     }
     break;  
@@ -360,11 +359,17 @@ static void read_message() {
     printf("\nUser> ");
     fflush(stdout);
   } else if (msg.type == DELETE_EMAIL_RES) {
-    struct delete_email_res_msg;
+    struct SERVER_DELETE_RES_MSG delete_email_res_msg;
+    memcpy(&delete_email_res_msg, mess, sizeof(delete_email_res_msg));
     if (delete_email_res_msg.success == 0)
-      printf("it's already been removed!";
-	     else
-	       printf("successfully removed!";
+      printf("\nit's already been removed!");
+    else
+      printf("\nsuccessfully removed!");
+
+    email_num -= 1;
+    
+    printf("\nUser> ");
+    fflush(stdout);
   }
   
 }
