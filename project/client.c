@@ -215,19 +215,19 @@ static void user_command() {
 	printf("you should request email list first.\n");
 	break;
       }
-      
+     
       ret = sscanf( &command[2], "%s", email_no);
-      int email_no = atoi(email_no) - 1;
-      if (email_no <= 0 || email_no > email_num) {
+      int no = atoi(email_no) - 1;
+      if (no < 0 || no >= email_num) {
 	printf("invalid email number");
 	break;
       }
-
+     
       struct CLIENT_READ_EMAIL_MSG read_email_msg;
       read_email_msg.msg.type = READ_EMAIL_REQ;
       read_email_msg.msg.source.type = CLIENT;
-      read_email_msg.server_index = email_list[email_no].server_index;
-      read_email_msg.email_index = email_list[email_no].email_index;
+      read_email_msg.server_index = email_list[no].server_index;
+      read_email_msg.email_index = email_list[no].email_index;
       memcpy(read_email_msg.user_name, user_name, USERNAME_LEN);
 
       ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(read_email_msg), (char *)&read_email_msg);
