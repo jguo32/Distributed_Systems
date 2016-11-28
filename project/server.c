@@ -216,6 +216,7 @@ int main(int argc, char *argv[]) {
         }
         /* Process read request */
       } else if (client_msg.type == READ_EMAIL_REQ) {
+
         struct CLIENT_READ_EMAIL_MSG read_request;
         memcpy(&read_request, mess, sizeof(read_request));
 
@@ -236,7 +237,7 @@ int main(int argc, char *argv[]) {
         }
 
         struct SERVER_EMAIL_RES_MSG read_response;
-        read_response.msg.type = SERVER;
+        read_response.msg.type = READ_EMAIL_RES;
         read_response.exist = 0;
 
         if (!user_email_head) {

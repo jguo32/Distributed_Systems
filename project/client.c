@@ -251,8 +251,8 @@ static void user_command() {
       }
       
       ret = sscanf( &command[2], "%s", email_no);
-      int email_no = atoi(email_no) - 1;
-      if (email_no <= 0 || email_no > email_num) {
+      int no = atoi(email_no) - 1;
+      if (no <= 0 || no > email_num) {
 	printf("invalid email number");
 	break;
       }
@@ -260,8 +260,8 @@ static void user_command() {
       struct CLIENT_DELETE_EMAIL_MSG delete_email_msg;
       delete_email_msg.msg.type = DELETE_EMAIL_REQ;
       delete_email_msg.msg.source.type = CLIENT;
-      delete_email_msg.server_index = email_list[email_no].server_index;
-      delete_email_msg.email_index = email_list[email_no].email_index;
+      delete_email_msg.server_index = email_list[no].server_index;
+      delete_email_msg.email_index = email_list[no].email_index;
       memcpy(delete_email_msg.user_name, user_name, USERNAME_LEN);
 
       ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(delete_email_msg), (char *)&delete_email_msg);
@@ -342,7 +342,7 @@ static void read_message() {
 	read = "read";
 	
       printf("%-5d %-10s %-12s %s\n",
-	     i, read,
+	     i+1, read,
 	     email_list[i].email.from,
 	     email_list[i].email.subject);
     }
@@ -350,18 +350,22 @@ static void read_message() {
     fflush(stdout);
   } else if (msg.type == READ_EMAIL_RES) {
     struct SERVER_EMAIL_RES_MSG email_msg;
-    printf("ddd");
     memcpy(&email_msg, mess, sizeof(email_msg));
-    printf("adsf");
     if (email_msg.exist == 0) {
-      printf("the email has already been deleted by other machine");
+      printf("\nthe email has already been deleted by other machine");
     } else {
-      printf("to:      %s\nsubject: %s\n%s\n", email_msg.email.to,
+      printf("\nto:      %s\nsubject: %s\n%s\n", email_msg.email.to,
 	     email_msg.email.subject, email_msg.email.content);
     }
     printf("\nUser> ");
     fflush(stdout);
-  } 
+  } else if (msg.type == DELETE_EMAIL_RES) {
+    struct delete_email_res_msg;
+    if (delete_email_res_msg.success == 0)
+      printf("it's already been removed!";
+	     else
+	       printf("successfully removed!";
+  }
   
 }
 
