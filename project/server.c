@@ -248,6 +248,7 @@ int main(int argc, char *argv[]) {
                 user_email_node->email_msg.email_index == email_index) {
               read_response.exist = 1;
               read_response.email = user_email_node->email_msg.email;
+	      read_response.email.read = 1;
               break;
             }
             user_email_node = user_email_node->next;
