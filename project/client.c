@@ -228,6 +228,7 @@ static void user_command() {
       read_email_msg.msg.source.type = CLIENT;
       read_email_msg.server_index = email_list[email_no].server_index;
       read_email_msg.email_index = email_list[email_no].email_index;
+      memcpy(read_email_msg.user_name, user_name, USERNAME_LEN);
 
       ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(read_email_msg), (char *)&read_email_msg);
 
@@ -261,6 +262,7 @@ static void user_command() {
       delete_email_msg.msg.source.type = CLIENT;
       delete_email_msg.server_index = email_list[email_no].server_index;
       delete_email_msg.email_index = email_list[email_no].email_index;
+      memcpy(delete_email_msg.user_name, user_name, USERNAME_LEN);
 
       ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(delete_email_msg), (char *)&delete_email_msg);
 
@@ -269,8 +271,6 @@ static void user_command() {
 	Bye();
       }
       
-      email_num = -1;
-
     }
     break;  
     
@@ -329,14 +329,14 @@ static void read_message() {
   } else if (msg.type == EMAIL_LIST_RES) {
     struct SERVER_EMAIL_LIST_RES_MSG email_list_res_msg;
     memcpy(&email_list_res_msg, mess, sizeof(email_list_res_msg));
-    int num = email_list_res_msg.email_num;
+    email_num = email_list_res_msg.email_num;
     memcpy(email_list, email_list_res_msg.email_list, num * sizeof(struct EMAIL_MSG));
     
     printf("\nuser: %s, server index: %s\n", user_name, server_index);
     printf("%-5s %-10s %-12s %s\n",
 	   "no", "status", "from", "subject");
 
-    for (int i = 0; i < num; i ++) {
+    for (int i = 0; i < email_num; i ++) {
       char *read = "unread";
       if (email_list[i].email.read == 1)   
 	read = "read";
@@ -349,14 +349,14 @@ static void read_message() {
     printf("\nUser> ");
     fflush(stdout);
   } else if (msg.type == READ_EMAIL_RES) {
-    struct SERVER_EMAIL_MSG email_msg;
+    struct SERVER_EMAIL_RES_MSG email_msg;
     memcpy(&email_msg, mess, sizeof(email_msg));
     if (email_msg.exist == 0) {
       printf("the email has already been deleted by other machine");
-      return;
+    } else {
+      printf("to:      %s\nsubject: %s\n%s\n", email_msg.email.to,
+	     email_msg.email.subject, email_msg.email.content);
     }
-    
-    printf("to:      %s\nsubject: %s\n%s\n", email_msg.email.to, email_msg.email.subject, email_msg.email.content);
     printf("\nUser> ");
     fflush(stdout);
   } 
