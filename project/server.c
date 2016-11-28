@@ -16,7 +16,6 @@ static mailbox Mbox;
 
 void print_email_list(struct EMAIL_MSG_NODE head);
 void print_user_list(struct USER_NODE *user);
-static void read_message();
 static void Bye();
 
 int main(int argc, char *argv[]) {
@@ -236,7 +235,7 @@ int main(int argc, char *argv[]) {
         }
 
         struct SERVER_EMAIL_RES_MSG read_response;
-        read_response.msg.type = SERVER;
+        read_response.msg.type = READ_EMAIL_RES;
         read_response.exist = 0;
 
         if (!user_email_head) {
@@ -263,8 +262,49 @@ int main(int argc, char *argv[]) {
 
       } else if (client_msg.type == DELETE_EMAIL_REQ) {
         struct CLIENT_DELETE_EMAIL_MSG delete_request;
-	memcpy(&delete_request, mess, sizeof(delete_request));
+        memcpy(&delete_request, mess, sizeof(delete_request));
 
+        char *user_name = delete_request.user_name;
+        int delete_email_index = delete_request.email_index;
+        int delete_server_index = delete_request.server_index;
+
+        // Look up the user in the list
+        struct EMAIL_MSG_NODE *user_email_head = NULL;
+        struct USER_NODE *user_list_node = user_list_head;
+
+        while (user_list_node) {
+          if (strcmp(user_list_node->user_name, user_name) == 0) {
+            user_email_head = &user_list_node->email_node;
+            break;
+          }
+          user_list_node = user_list_node->next;
+        }
+
+        struct SERVER_DELETE_RES_MSG delete_response;
+        delete_response.msg.type = DELETE_EMAIL_RES;
+        delete_response.success = 0;
+
+        if (user_email_head) {
+	  struct EMAIL_MSG_NODE *user_email_node = user_email_head;
+          while (user_email_node->next) {
+            struct EMAIL_MSG cur_email_msg = user_email_node->next->email_msg;
+            if (cur_email_msg.server_index == delete_server_index &&
+                cur_email_msg.email_index == delete_email_index) {
+              user_email_node->next = user_email_node->next->next;
+              delete_response.success = 1;
+              break;
+            }
+	    user_email_node = user_email_node->next;
+          }
+        }
+
+	ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(delete_response),
+                           (char *)&delete_response);
+        if (ret < 0) {
+          SP_error(ret);
+          printf("\nBye.\n");
+          exit(0);
+        }
 
 
       } else {
@@ -328,8 +368,6 @@ void print_email_list(struct EMAIL_MSG_NODE head) {
     cur = cur->next;
   }
 }
-
-static void read_message() {}
 
 static void Bye() {
   printf("\nBye.\n");

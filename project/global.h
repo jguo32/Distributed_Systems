@@ -118,3 +118,8 @@ struct SERVER_EMAIL_RES_MSG {
   int exist;
   struct EMAIL email;
 };
+
+struct SERVER_DELETE_RES_MSG {
+  struct SERVER_MSG msg;
+  int success;
+};
