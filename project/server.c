@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
         struct EMAIL_MSG_NODE *user_email_head = NULL;
         struct USER_NODE *user_list_node = user_list_head;
         
-        while (user_list_node != NULL && 0) {
+        while (user_list_node) {
           if (strcmp(user_list_node->user_name, user_name) == 0) {
             user_email_head = &user_list_node->email_node;
             break;
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
         struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
         int email_num = 0;
 
-        if (user_email_head == NULL) {
+        if (!user_email_head) {
           printf("User %s not found!\n", user_name);
         } else {
           struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
