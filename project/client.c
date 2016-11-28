@@ -259,7 +259,6 @@ static void read_message() {
     SP_error(ret);
     Bye();
   }
-  
   struct SERVER_MSG msg;
   memcpy(&msg, mess, sizeof(msg));
   
@@ -285,9 +284,10 @@ static void read_message() {
     struct SERVER_EMAIL_LIST_RES_MSG email_list_res_msg;
     memcpy(&email_list_res_msg, mess, sizeof(email_list_res_msg));
     int num = email_list_res_msg.email_num;
-    memcpy(email_list, email_list_res_msg.email_list, num * sizeof(struct SERVER_EMAIL_LIST_RES_MSG));
+    printf("num: %d\n", num);
+    memcpy(email_list, email_list_res_msg.email_list, num * sizeof(struct EMAIL_MSG));
 
-
+    
     printf("user: %s, server index: %s\n", user_name, server_index);
     
     printf("%-5s %-10s %-20s %-100s\n",
