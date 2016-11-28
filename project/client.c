@@ -350,7 +350,9 @@ static void read_message() {
     fflush(stdout);
   } else if (msg.type == READ_EMAIL_RES) {
     struct SERVER_EMAIL_RES_MSG email_msg;
+    printf("ddd");
     memcpy(&email_msg, mess, sizeof(email_msg));
+    printf("adsf");
     if (email_msg.exist == 0) {
       printf("the email has already been deleted by other machine");
     } else {
