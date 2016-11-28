@@ -21,6 +21,8 @@ static void Bye();
 
 int main(int argc, char *argv[]) {
   static int index_matrix[5][5]; // Lamport index matrix
+  static int email_counter = 0;
+
   struct USER_NODE *user_list_head =
       (struct USER_NODE *)malloc(sizeof(struct USER_NODE));
   char *server_index;
@@ -104,7 +106,6 @@ int main(int argc, char *argv[]) {
           }
         }
 
-        // Join the private group
         SP_join(Mbox, private_group);
 
         // Return the private group name to the client
@@ -128,7 +129,7 @@ int main(int argc, char *argv[]) {
         struct EMAIL_MSG_NODE *user_email_head = NULL;
         struct USER_NODE *user_list_node = user_list_head;
         while (user_list_node->next) {
-	  user_list_node = user_list_node->next;
+          user_list_node = user_list_node->next;
           if (strcmp(user_list_node->user_name, user_name) == 0) {
             user_email_head = &user_list_node->email_node;
             break;
@@ -136,10 +137,11 @@ int main(int argc, char *argv[]) {
         }
 
         // Create a new mail node
-        // TODO: add server_id and index to email_node, wrap with EMAIL_MSG
+        // TODO: add email index to email_node, wrap with EMAIL_MSG
         struct EMAIL_MSG_NODE *new_email_node =
             (struct EMAIL_MSG_NODE *)malloc(sizeof(struct EMAIL_MSG_NODE));
         new_email_node->email_msg.email = send_email_msg.email;
+        new_email_node->email_msg.email_index = ++email_counter;
         new_email_node->email_msg.server_index = atoi(server_index);
 
         // Add a new user node if it is not in the list
@@ -171,13 +173,13 @@ int main(int argc, char *argv[]) {
       } else if (client_msg.type == EMAIL_LIST_REQ) {
         struct CLIENT_EMAIL_LIST_REQ_MSG list_req;
         memcpy(&list_req, mess, sizeof(list_req));
-        
+
         char *user_name = list_req.receiver_name;
 
         // Look up the user in the list
         struct EMAIL_MSG_NODE *user_email_head = NULL;
         struct USER_NODE *user_list_node = user_list_head;
-        
+
         while (user_list_node) {
           if (strcmp(user_list_node->user_name, user_name) == 0) {
             user_email_head = &user_list_node->email_node;
@@ -199,20 +201,69 @@ int main(int argc, char *argv[]) {
           }
         }
 
-	// Form & send the response message
-	struct SERVER_EMAIL_LIST_RES_MSG list_response;
-	list_response.msg.type = EMAIL_LIST_RES;
-	//list_response.email_list = email_list;
-	memcpy(&list_response.email_list, email_list, sizeof(email_list));
-	list_response.email_num = email_num;
-        
-	ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(list_response), (char *) &list_response);
-	if (ret < 0) {
+        // Form & send the response message
+        struct SERVER_EMAIL_LIST_RES_MSG list_response;
+        list_response.msg.type = EMAIL_LIST_RES;
+        memcpy(&list_response.email_list, email_list, sizeof(email_list));
+        list_response.email_num = email_num;
+
+        ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(list_response),
+                           (char *)&list_response);
+        if (ret < 0) {
           SP_error(ret);
-	  printf("\nBye.\n");
-	  exit(0);
-	}
-      
+          printf("\nBye.\n");
+          exit(0);
+        }
+        /* Process read request */
+      } else if (client_msg.type == READ_EMAIL_REQ) {
+        struct CLIENT_READ_EMAIL_MSG read_request;
+        memcpy(&read_request, mess, sizeof(read_request));
+
+        char *user_name = read_request.user_name;
+        int email_index = read_request.email_index;
+        int read_server_index = read_request.server_index;
+
+        // Look up the user in the list
+        struct EMAIL_MSG_NODE *user_email_head = NULL;
+        struct USER_NODE *user_list_node = user_list_head;
+
+        while (user_list_node) {
+          if (strcmp(user_list_node->user_name, user_name) == 0) {
+            user_email_head = &user_list_node->email_node;
+            break;
+          }
+          user_list_node = user_list_node->next;
+        }
+
+        struct SERVER_EMAIL_RES_MSG read_response;
+        read_response.msg.type = SERVER;
+        read_response.exist = 0;
+
+        if (!user_email_head) {
+          printf("User %s not found!\n", user_name);
+        } else {
+          struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
+          while (user_email_node) {
+            if (user_email_node->email_msg.server_index == read_server_index &&
+                user_email_node->email_msg.email_index == email_index) {
+              read_response.exist = 1;
+              read_response.email = user_email_node->email_msg.email;
+              break;
+            }
+            user_email_node = user_email_node->next;
+          }
+        }
+        ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(read_response),
+                           (char *)&read_response);
+        if (ret < 0) {
+          SP_error(ret);
+          printf("\nBye.\n");
+          exit(0);
+        }
+
+      } else if (client_msg.type == DELETE_EMAIL_REQ) {
+
+      } else {
       }
 
       /* Process server request/updates */

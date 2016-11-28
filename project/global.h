@@ -87,12 +87,14 @@ struct CLIENT_READ_EMAIL_MSG {
   struct CLIENT_MSG msg;
   int server_index;
   int email_index;
+  char user_name[USERNAME_LEN];
 };
 
 struct CLIENT_DELETE_EMAIL_MSG {
   struct CLIENT_MSG msg;
   int server_index;
   int email_index;
+  char user_name[USERNAME_LEN];
 };
 
 /* msg from server to client */
@@ -111,8 +113,8 @@ struct SERVER_EMAIL_LIST_RES_MSG {
   struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
 };
 
-struct SERVER_EMAIL_MSG {
+struct SERVER_EMAIL_RES_MSG {
   struct SERVER_MSG msg;
-  char exist;
+  int exist;
   struct EMAIL email;
 };
