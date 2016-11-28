@@ -262,6 +262,10 @@ int main(int argc, char *argv[]) {
         }
 
       } else if (client_msg.type == DELETE_EMAIL_REQ) {
+        struct CLIENT_DELETE_EMAIL_MSG delete_request;
+	memcpy(&delete_request, mess, sizeof(delete_request));
+
+
 
       } else {
       }
