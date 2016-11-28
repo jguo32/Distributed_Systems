@@ -330,7 +330,7 @@ static void read_message() {
     struct SERVER_EMAIL_LIST_RES_MSG email_list_res_msg;
     memcpy(&email_list_res_msg, mess, sizeof(email_list_res_msg));
     email_num = email_list_res_msg.email_num;
-    memcpy(email_list, email_list_res_msg.email_list, num * sizeof(struct EMAIL_MSG));
+    memcpy(email_list, email_list_res_msg.email_list, email_num * sizeof(struct EMAIL_MSG));
     
     printf("\nuser: %s, server index: %s\n", user_name, server_index);
     printf("%-5s %-10s %-12s %s\n",
