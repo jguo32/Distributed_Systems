@@ -3,10 +3,6 @@
 #define MAX_MEMBERS 100
 #define MAX_MESSLEN 102400
 
-#define CLIENT 'c'
-#define SERVER 's'
-
-
 #define USERNAME_LEN         80
 #define SUBJECT_LEN          200
 #define CONTENT_LEN          1000
@@ -21,12 +17,18 @@
 #define CONNECT 'c'
 
 /* msg type between client with server */
+#define CLIENT 'c'
+#define SERVER 's'
 
-#define PRIVATE_GROUP_REQ       'p'
-#define PRIVATE_GROUP_RES       'r'
-#define SEND_EMAIL              'e'
-#define EMAIL_LIST_REQ          'l'
-#define EMAIL_LIST_RES          'm'
+#define PRIVATE_GROUP_REQ       'a'
+#define PRIVATE_GROUP_RES       'b'
+#define SEND_EMAIL              'c'
+#define EMAIL_LIST_REQ          'd'
+#define EMAIL_LIST_RES          'e'
+#define READ_EMAIL_REQ          'f'
+#define READ_EMAIL_RES          'g'
+#define DELETE_EMAIL_REQ        'h'
+#define DELETE_EMAIL_RES        'i'
 
 /* email struct */
 struct EMAIL {
@@ -55,7 +57,7 @@ struct USER_NODE {
   struct USER_NODE *next;
 };
 
-/* check msg from server or client */
+/* msg to server, flag msg check from server or client */
 struct SOURCE {
   char type;
 };
@@ -81,6 +83,17 @@ struct CLIENT_SEND_EMAIL_MSG {
   struct EMAIL email;
 };
 
+struct CLIENT_READ_EMAIL_MSG {
+  struct CLIENT_MSG msg;
+  int server_index;
+  int email_index;
+};
+
+struct CLIENT_DELETE_EMAIL_MSG {
+  struct CLIENT_MSG msg;
+  int server_index;
+  int email_index;
+};
 
 /* msg from server to client */
 struct SERVER_MSG {
@@ -98,3 +111,8 @@ struct SERVER_EMAIL_LIST_RES_MSG {
   struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
 };
 
+struct SERVER_EMAIL_MSG {
+  struct SERVER_MSG msg;
+  char exist;
+  struct EMAIL email;
+};
