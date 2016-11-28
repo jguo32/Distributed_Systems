@@ -337,7 +337,7 @@ static void read_message() {
 
     for (int i = 0; i < email_num; i ++) {
       char *read = "unread";
-      if (email_list[i].email.read == 1)   
+      if (email_list[i].email.read == 1)
 	read = "read";
 	
       printf("%-5d %-10s %-12s %s\n",
@@ -362,9 +362,9 @@ static void read_message() {
     struct SERVER_DELETE_RES_MSG delete_email_res_msg;
     memcpy(&delete_email_res_msg, mess, sizeof(delete_email_res_msg));
     if (delete_email_res_msg.success == 0)
-      printf("\nit's already been removed!");
+      printf("\nit's already been removed!\n");
     else
-      printf("\nsuccessfully removed!");
+      printf("\nsuccessfully removed!\n");
 
     email_num -= 1;
     
