@@ -163,6 +163,7 @@ int main(int argc, char *argv[]) {
 
         // TODO: multicast to all other servers
         // TODO: write email/updates into disks
+
         print_user_list(user_list_head);
         /* Process list email request */
       } else if (client_msg.type == EMAIL_LIST_REQ) {
@@ -175,7 +176,7 @@ int main(int argc, char *argv[]) {
         struct EMAIL_MSG_NODE *user_email_head = NULL;
         struct USER_NODE *user_list_node = user_list_head;
         
-        while (user_list_node != NULL && 0) {
+        while (user_list_node != NULL) {
           if (strcmp(user_list_node->user_name, user_name) == 0) {
             user_email_head = &user_list_node->email_node;
             break;
