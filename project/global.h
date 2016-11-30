@@ -62,6 +62,23 @@ struct SOURCE {
   char type;
 };
 
+/* sturcts for the server to maintain updates messages */
+struct UPDATE_MSG {
+  struct SOURCE source;
+  char type;
+  int time_stamp;
+  int update_index;
+  int server_index;
+  int email_index;              /* for create/read/delete email */
+  char user_name[USERNAME_LEN];
+};
+
+struct UPDATE_MSG_NODE {
+  struct UPDATE_MSG_NODE *next;
+  struct UPDATE_MSG_NODE *pre;
+  struct UPDATE_MSG update_msg;
+};
+
 /* msg from client to server */
 struct CLIENT_MSG {
   struct SOURCE source;
@@ -123,3 +140,4 @@ struct SERVER_DELETE_RES_MSG {
   struct SERVER_MSG msg;
   int success;
 };
+

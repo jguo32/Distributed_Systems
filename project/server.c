@@ -16,14 +16,30 @@ static mailbox Mbox;
 
 void print_email_list(struct EMAIL_MSG_NODE head);
 void print_user_list(struct USER_NODE *user);
+
+void add_update_msg(struct UPDATE_MSG update_msg, int server_index);
+void delete_update_msg(int server_index, int update_index);   
+
+struct UPDATE_MSG_NODE *update_msg_head[5] = {NULL};
+struct UPDATE_MSG_NODE *update_msg_tail[5] = {NULL};
+
 static void Bye();
 
 int main(int argc, char *argv[]) {
   static int index_matrix[5][5]; // Lamport index matrix
   static int email_counter = 0;
-
   struct USER_NODE *user_list_head =
-      (struct USER_NODE *)malloc(sizeof(struct USER_NODE));
+    (struct USER_NODE *)malloc(sizeof(struct USER_NODE));
+  
+  for (int i = 0; i < 5; i ++) {
+    update_msg_head[i] =
+      (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
+    update_msg_tail[i] =
+      (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
+    update_msg_head[i]->next = update_msg_tail[i];
+    update_msg_tail[i]->pre = update_msg_head[i];
+  }
+  
   char *server_index;
 
   static char mess[MAX_MESSLEN];
@@ -375,4 +391,29 @@ static void Bye() {
   printf("\nBye.\n");
   SP_disconnect(Mbox);
   exit(0);
+}
+
+void add_update_msg(struct UPDATE_MSG update_msg, int server_index) {
+
+  struct UPDATE_MSG_NODE *update_msg_node =
+    (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
+  update_msg_node->update_msg = update_msg;
+  update_msg_node->pre = update_msg_head[server_index];
+  update_msg_node->next = update_msg_head[server_index]->next;
+  update_msg_head[server_index]->next = update_msg_node;
+  update_msg_node->next->pre = update_msg_node;
+}
+  
+void delete_update_msg(int server_index, int update_index){
+  int find = 0;
+  struct UPDATE_MSG_NODE *temp_msg = update_msg_tail[server_index]->pre;
+  while (temp_msg->update_msg.update_index != update_index) {
+    temp_msg = temp_msg->pre;
+    find = 1;
+  }
+  if (find == 1) {
+    temp_msg->pre->next = temp_msg->next;
+    temp_msg->next->pre = temp_msg->pre;
+    free(temp_msg);
+  }
 }

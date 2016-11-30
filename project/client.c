@@ -268,9 +268,8 @@ static void user_command() {
 	SP_error(ret);
 	Bye();
       }
-
-      
     }
+    
     break;  
     
   case 'q':
