@@ -3,11 +3,13 @@
 #define MAX_MEMBERS 100
 #define MAX_MESSLEN 102400
 
-#define USERNAME_LEN         80
-#define SUBJECT_LEN          200
-#define CONTENT_LEN          1000
-#define GROUPNAME_LEN        MAX_GROUP_NAME
-#define EMAIL_LIST_MAX_LEN   50
+#define USERNAME_LEN 80
+#define SUBJECT_LEN 200
+#define CONTENT_LEN 1000
+#define GROUPNAME_LEN MAX_GROUP_NAME
+#define EMAIL_LIST_MAX_LEN 50
+
+#define MAX_VSSETS 10
 
 // char user_name[USERNAME_LEN];
 
@@ -20,15 +22,17 @@
 #define CLIENT 'c'
 #define SERVER 's'
 
-#define PRIVATE_GROUP_REQ       'a'
-#define PRIVATE_GROUP_RES       'b'
-#define SEND_EMAIL              'c'
-#define EMAIL_LIST_REQ          'd'
-#define EMAIL_LIST_RES          'e'
-#define READ_EMAIL_REQ          'f'
-#define READ_EMAIL_RES          'g'
-#define DELETE_EMAIL_REQ        'h'
-#define DELETE_EMAIL_RES        'i'
+#define PRIVATE_GROUP_REQ 'a'
+#define PRIVATE_GROUP_RES 'b'
+#define SEND_EMAIL 'c'
+#define EMAIL_LIST_REQ 'd'
+#define EMAIL_LIST_RES 'e'
+#define READ_EMAIL_REQ 'f'
+#define READ_EMAIL_RES 'g'
+#define DELETE_EMAIL_REQ 'h'
+#define DELETE_EMAIL_RES 'i'
+
+#define EXCHANGE_INDEX_MATRIX 'j'
 
 /* email struct */
 struct EMAIL {
@@ -139,5 +143,11 @@ struct SERVER_EMAIL_RES_MSG {
 struct SERVER_DELETE_RES_MSG {
   struct SERVER_MSG msg;
   int success;
+};
+
+
+struct EXCHANGE_INDEX_MATRIX_MSG {
+  struct UPDATE_MSG update_msg;
+  int index_matrix[5][5];
 };
 
