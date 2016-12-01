@@ -14,25 +14,28 @@
 // char user_name[USERNAME_LEN];
 
 /* client status */
-#define INIT 'i'
-#define LOGIN 'g'
+#define INIT    'i'
+#define LOGIN   'g'
 #define CONNECT 'c'
 
 /* msg type between client with server */
-#define CLIENT 'c'
-#define SERVER 's'
+#define CLIENT  'c'
+#define SERVER  's'
 
-#define PRIVATE_GROUP_REQ 'a'
-#define PRIVATE_GROUP_RES 'b'
-#define SEND_EMAIL 'c'
-#define EMAIL_LIST_REQ 'd'
-#define EMAIL_LIST_RES 'e'
-#define READ_EMAIL_REQ 'f'
-#define READ_EMAIL_RES 'g'
-#define DELETE_EMAIL_REQ 'h'
-#define DELETE_EMAIL_RES 'i'
+#define PRIVATE_GROUP_REQ     'a'
+#define PRIVATE_GROUP_RES     'b'
+#define SEND_EMAIL            'c'
+#define EMAIL_LIST_REQ        'd'
+#define EMAIL_LIST_RES        'e'
+#define READ_EMAIL_REQ        'f'
+#define READ_EMAIL_RES        'g'
+#define DELETE_EMAIL_REQ      'h'
+#define DELETE_EMAIL_RES      'i'
 
 #define EXCHANGE_INDEX_MATRIX 'j'
+#define NEW_EMAIL             'k'
+#define READ_EMAIL            'l'
+#define DELETE_EMAIL          'm'
 
 /* email struct */
 struct EMAIL {
@@ -100,7 +103,7 @@ struct CLIENT_EMAIL_LIST_REQ_MSG {
 
 struct CLIENT_SEND_EMAIL_MSG {
   struct CLIENT_MSG msg;
-  char receiver_name[USERNAME_LEN];
+  char receiver_name[USERNAME_LEN]; /*deprecate*/
   struct EMAIL email;
 };
 
@@ -146,8 +149,13 @@ struct SERVER_DELETE_RES_MSG {
 };
 
 
+/* message bewteen servers */
 struct EXCHANGE_INDEX_MATRIX_MSG {
   struct UPDATE_MSG update_msg;
   int index_matrix[5][5];
 };
 
+struct NEW_EMAIL_MSG {
+  struct UPDATE_MSG update_msg;
+  struct EMAIL email;
+};
