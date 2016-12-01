@@ -18,7 +18,8 @@ void print_email_list(struct EMAIL_MSG_NODE head);
 void print_user_list(struct USER_NODE *user);
 
 void add_update_msg(struct UPDATE_MSG update_msg, int server_index);
-void delete_update_msg(int server_index, int update_index);   
+void delete_update_msg(int server_index, int update_index);
+struct EMAIL_MSG lookup_email(int server_index, char *user_name);
 
 struct UPDATE_MSG_NODE *update_msg_head[5] = {NULL};
 struct UPDATE_MSG_NODE *update_msg_tail[5] = {NULL};
