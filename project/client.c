@@ -100,7 +100,7 @@ static void user_command() {
     {
       ret = sscanf( &command[2], "%s", server_index);
       int index = atoi(server_index);
-      if (ret < 1 || !(index <= 5 && index >= 1)) {
+      if (ret < 1 || !(index <= 4 && index >= 0)) {
 	printf("Invalid server index.\n");
 	break;	
       }
