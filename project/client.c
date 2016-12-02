@@ -25,6 +25,7 @@ char status = INIT;
 char private_group_name[GROUPNAME_LEN];
 struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
 int email_num = -1;
+int cur_server_index = -1;
 
 int main(int argc, char *argv[]) {
   char *client_index;
@@ -88,29 +89,34 @@ static void user_command() {
     {
       ret = sscanf( &command[2], "%s", user_name );
       if (ret < 1) {
-	printf("Invalid user name.\n");
-	break;
+        printf("Invalid user name.\n");
+        break;
       }
       printf("User logged in as: %s\n", user_name);
       status = LOGIN;
       break;
     }
-    
+
   case 'c':
     {
       ret = sscanf( &command[2], "%s", server_index);
       int index = atoi(server_index);
       if (ret < 1 || !(index <= 4 && index >= 0)) {
-	printf("Invalid server index.\n");
-	break;	
+        printf("Invalid server index.\n");
+        break;
+      }
+
+      if (cur_server_index != -1 && cur_server_index == index) {
+        printf("you are already connect with this server.\n");
+        break;
       }
 
       if (status  == CONNECT) {
-	ret = SP_leave(Mbox, private_group_name);
-	if (ret < 0) {
-	  SP_error(ret);
-	  Bye();
-	}
+        ret = SP_leave(Mbox, private_group_name);
+        if (ret < 0) {
+          SP_error(ret);
+          Bye();
+        }
       }
 
       // Join the public group of the designated server
@@ -121,25 +127,26 @@ static void user_command() {
       struct CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
       private_group_req_msg.msg.source.type = CLIENT;
       private_group_req_msg.msg.type = PRIVATE_GROUP_REQ;
-    
-      ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg);
-  
-      if (ret < 0) {
-	SP_error(ret);
-	Bye();
-      }
 
+      ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0, sizeof(private_group_req_msg), (char *)&private_group_req_msg);
+
+      if (ret < 0) {
+        SP_error(ret);
+        Bye();
+      }
+      email_num = -1;
+      cur_server_index = index;
       printf("connecting to server #%d\n", index);
       break;
     }
-    
+
   case 'm':
     {
       if (status != CONNECT) {
-	printf("you should connect server first!\n");
-	break;
+        printf("you should connect server first!\n");
+        break;
       }
-    
+
       struct EMAIL email;
       email.read = 0;
       memcpy(email.from, user_name, USERNAME_LEN);
@@ -147,20 +154,20 @@ static void user_command() {
       /* get recipient's name */
       printf("\nTo:> ");
       while (fgets(email.to, USERNAME_LEN, stdin) == NULL ||
-	     (strlen(email.to) == 1 && email.to[0] == '\n')) {
-	printf("please enter the recipient's name\n");
-	printf("\nTo:> ");
+             (strlen(email.to) == 1 && email.to[0] == '\n')) {
+        printf("please enter the recipient's name\n");
+        printf("\nTo:> ");
       }
-    
+
       email.to[strlen(email.to)-1] = 0; //remove enter
       printf("recipient name: %s\n", email.to);
 
       /* get email subject */
       printf("\nSubject:> ");
       while (fgets(email.subject, SUBJECT_LEN, stdin) == NULL ||
-	     (strlen(email.subject) == 1 && email.subject[0] == '\n')) {
-	printf("please enter the subject\n");
-	printf("\nSubject:> ");
+             (strlen(email.subject) == 1 && email.subject[0] == '\n')) {
+        printf("please enter the subject\n");
+        printf("\nSubject:> ");
       }
 
       email.subject[strlen(email.subject)-1] = 0; //remove enter
@@ -169,11 +176,11 @@ static void user_command() {
       /* get email content */
       printf("\nContent:> ");
       while (fgets(email.content, CONTENT_LEN, stdin) == NULL ||
-	     (strlen(email.content) == 1 && email.content[0] == '\n')) {
-	printf("please enter the content\n");
-	printf("\nContent:> ");
+             (strlen(email.content) == 1 && email.content[0] == '\n')) {
+        printf("please enter the content\n");
+        printf("\nContent:> ");
       }
-    
+
       email.content[strlen(email.content)-1] = 0; //remove enter
       printf("content: %s\n", email.content);
 
@@ -182,17 +189,17 @@ static void user_command() {
       send_email_msg.msg.type = SEND_EMAIL;
       memcpy(send_email_msg.receiver_name, email.to, sizeof(email.to));
       send_email_msg.email = email;
-    
+
       ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(send_email_msg), (char *)&send_email_msg);
 
       if (ret < 0) {
-	SP_error(ret);
-	Bye();
+        SP_error(ret);
+        Bye();
       }
-    
+
       break;
     }
-    
+
   case 'l':
     {
       struct CLIENT_EMAIL_LIST_REQ_MSG email_list_req_msg;
@@ -202,27 +209,28 @@ static void user_command() {
       ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(email_list_req_msg), (char *)&email_list_req_msg);
 
       if (ret < 0) {
-	SP_error(ret);
-	Bye();
+        SP_error(ret);
+        Bye();
       }
-    
+
       break;
     }
 
   case 'r':
     {
+
       if (email_num < 0) {
-	printf("you should request email list first.\n");
-	break;
+        printf("you should request email list first.\n");
+        break;
       }
-     
+
       ret = sscanf( &command[2], "%s", email_no);
       int no = atoi(email_no) - 1;
       if (no < 0 || no >= email_num) {
-	printf("invalid email number");
-	break;
+        printf("invalid email number");
+        break;
       }
-     
+
       struct CLIENT_READ_EMAIL_MSG read_email_msg;
       read_email_msg.msg.type = READ_EMAIL_REQ;
       read_email_msg.msg.source.type = CLIENT;
@@ -233,26 +241,26 @@ static void user_command() {
       ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(read_email_msg), (char *)&read_email_msg);
 
       if (ret < 0) {
-	SP_error(ret);
-	Bye();
+        SP_error(ret);
+        Bye();
       }
-          
+
     }
-    
+
     break;
-    
+
   case 'd':
     {
       if (email_num < 0) {
-	printf("you should request email list first.\n");
-	break;
+        printf("you should request email list first.\n");
+        break;
       }
-      
+
       ret = sscanf( &command[2], "%s", email_no);
       int no = atoi(email_no) - 1;
       if (no < 0 || no >= email_num) {
-	printf("invalid email number");
-	break;
+        printf("invalid email number");
+        break;
       }
 
       struct CLIENT_DELETE_EMAIL_MSG delete_email_msg;
@@ -265,13 +273,13 @@ static void user_command() {
       ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0, sizeof(delete_email_msg), (char *)&delete_email_msg);
 
       if (ret < 0) {
-	SP_error(ret);
-	Bye();
+        SP_error(ret);
+        Bye();
       }
     }
-    
-    break;  
-    
+
+    break;
+
   case 'q':
     Bye();
     break;
@@ -297,67 +305,79 @@ static void read_message() {
   int             endian_mismatch;
   char            mess[MAX_MESSLEN];
   int             ret;
-  
-  ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups, &mess_type, &endian_mismatch, sizeof(mess), mess);
+
+  ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups,
+                   target_groups, &mess_type, &endian_mismatch,
+                   sizeof(mess), mess);
   if (ret < 0) {
     SP_error(ret);
     Bye();
   }
   struct SERVER_MSG msg;
   memcpy(&msg, mess, sizeof(msg));
-  
+
   if (msg.type == PRIVATE_GROUP_RES) {
     struct SERVER_PRIVATE_GROUP_RES_MSG private_group_res_msg;
     memcpy(&private_group_res_msg, mess, sizeof(private_group_res_msg));
-    
+
     ret = SP_join(Mbox, private_group_res_msg.group_name);
 
     memcpy(private_group_name, private_group_res_msg.group_name,
-	   sizeof(private_group_name));
-    
+           sizeof(private_group_name));
+
     if (ret < 0) {
       SP_error(ret);
       Bye();
     }
 
     status = CONNECT;
+
+    email_num = -1;
+    cur_server_index = atoi(server_index);
+
     printf("\nsuccessfully connected to server #%s\n", server_index);
     printf("\nUser> ");
     fflush(stdout);
+
   } else if (msg.type == EMAIL_LIST_RES) {
+
     struct SERVER_EMAIL_LIST_RES_MSG email_list_res_msg;
     memcpy(&email_list_res_msg, mess, sizeof(email_list_res_msg));
     email_num = email_list_res_msg.email_num;
     memcpy(email_list, email_list_res_msg.email_list, email_num * sizeof(struct EMAIL_MSG));
-    
+
     printf("\nuser: %s, server index: %s\n", user_name, server_index);
     printf("%-5s %-10s %-12s %s\n",
-	   "no", "status", "from", "subject");
+           "no", "status", "from", "subject");
 
     for (int i = 0; i < email_num; i ++) {
       char *read = "unread";
       if (email_list[i].email.read == 1)
-	read = "read";
-	
+        read = "read";
+
       printf("%-5d %-10s %-12s %s\n",
-	     i+1, read,
-	     email_list[i].email.from,
-	     email_list[i].email.subject);
+             i+1, read,
+             email_list[i].email.from,
+             email_list[i].email.subject);
     }
     printf("\nUser> ");
     fflush(stdout);
+
   } else if (msg.type == READ_EMAIL_RES) {
+
     struct SERVER_EMAIL_RES_MSG email_msg;
     memcpy(&email_msg, mess, sizeof(email_msg));
     if (email_msg.exist == 0) {
       printf("\nthe email has already been deleted by other machine");
     } else {
       printf("\nto:      %s\nsubject: %s\n%s\n", email_msg.email.to,
-	     email_msg.email.subject, email_msg.email.content);
+             email_msg.email.subject, email_msg.email.content);
     }
     printf("\nUser> ");
     fflush(stdout);
+
   } else if (msg.type == DELETE_EMAIL_RES) {
+
     struct SERVER_DELETE_RES_MSG delete_email_res_msg;
     memcpy(&delete_email_res_msg, mess, sizeof(delete_email_res_msg));
     if (delete_email_res_msg.success == 0)
@@ -366,11 +386,11 @@ static void read_message() {
       printf("\nsuccessfully removed!\n");
 
     email_num -= 1;
-    
+
     printf("\nUser> ");
     fflush(stdout);
   }
-  
+
 }
 
 static void print_menu() {
@@ -387,7 +407,7 @@ static void print_menu() {
   printf("\td <mail_index>: delete a mail message.\n");
   printf("\tr <mail_index>: read a received mail message.\n");
   printf("\tv: print the membership of the mail servers.\n");
-  
+
   printf("\n");
   printf("\tq: quit.\n");
   fflush(stdout);

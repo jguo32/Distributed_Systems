@@ -77,6 +77,7 @@ struct UPDATE_MSG {
   int update_index;
   int server_index;
   int email_index;              /* for create/read/delete email */
+  int email_server_index;
   char user_name[USERNAME_LEN];
 };
 

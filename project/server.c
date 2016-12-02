@@ -30,9 +30,9 @@ int delete_email(char *user_name, int email_index, int server_index,
 
 void add_update_msg(struct UPDATE_MSG update_msg, int server_index);
 void delete_update_msg(int server_index, int update_index);
-int check_time_index(int index_matrix[][5], int server_index1, int server_index2,
-                     int time_stamp_new, int time_stamp_cur,
-                     int update_index_new);
+int check_time_index(int server_index1, int server_index2,
+                     int update_index_new, int index_matrix[][5]);
+
 //TODO
 struct EMAIL_MSG lookup_email(int server_index, char *user_name);
 
@@ -118,9 +118,8 @@ int main(int argc, char *argv[]) {
   // May use Spread event handler
   membership_info memb_info;
   while (1) {
-    ret =
-      SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
-                 &mess_type, &endian_mismatch, sizeof(mess), mess);
+    ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
+                     &mess_type, &endian_mismatch, sizeof(mess), mess);
     if (ret < 0) {
       SP_error(ret);
       printf("\nBye.\n");
@@ -169,6 +168,13 @@ int main(int argc, char *argv[]) {
 
         // TODO: write email/updates into disks
 
+
+        /*TODO: update all index value that the servers in same group */
+        // index_matrix[atoi(server_index)-1][atoi(server_index)-1] = 1;
+        email_counter += 1;
+        time_stamp += 1;
+        lamport_index += 1;
+
         // Create a new email msg
         struct EMAIL_MSG email_msg;
         email_msg.email = send_email_msg.email;
@@ -179,12 +185,6 @@ int main(int argc, char *argv[]) {
         add_new_email(email_msg, user_list_head);
 
         print_user_list(user_list_head);
-
-       	/*TODO: update all index value that the servers in same group */
-        // index_matrix[atoi(server_index)-1][atoi(server_index)-1] = 1;
-        email_counter += 1;
-        time_stamp += 1;
-        lamport_index += 1;
 
         /*create update message, mutlicast to group*/
         struct NEW_EMAIL_MSG new_email_msg;
@@ -255,6 +255,7 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
         /* Process read request */
+        print_user_list(user_list_head);
 
       } else if (client_msg.type == READ_EMAIL_REQ) {
 
@@ -275,6 +276,9 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
 
+        time_stamp += 1;
+        lamport_index += 1;
+
         /*create update message, and multicast to group*/
         struct UPDATE_MSG update_read_msg;
         update_read_msg.source.type = SERVER;
@@ -283,11 +287,9 @@ int main(int argc, char *argv[]) {
         update_read_msg.update_index = lamport_index;
         update_read_msg.server_index = atoi(server_index);
         update_read_msg.email_index = read_request.email_index;
+        update_read_msg.email_server_index = read_request.server_index;
         memcpy(update_read_msg.user_name, read_request.user_name,
                sizeof(read_request.user_name));
-
-        time_stamp += 1;
-        lamport_index += 1;
 
         ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
                            sizeof(update_read_msg),
@@ -317,19 +319,20 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
 
+        time_stamp += 1;
+        lamport_index += 1;
+
         /* create update message, and multicast to group*/
         struct UPDATE_MSG update_delete_msg;
         update_delete_msg.source.type = SERVER;
-        update_delete_msg.type = READ_EMAIL;
+        update_delete_msg.type = DELETE_EMAIL;
         update_delete_msg.time_stamp = time_stamp;
         update_delete_msg.update_index = lamport_index;
         update_delete_msg.server_index = atoi(server_index);
         update_delete_msg.email_index = delete_request.email_index;
+        update_delete_msg.email_server_index = delete_request.server_index;
         memcpy(update_delete_msg.user_name, delete_request.user_name,
                sizeof(delete_request.user_name));
-
-        time_stamp += 1;
-        lamport_index += 1;
 
         ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
                            sizeof(update_delete_msg),
@@ -341,7 +344,7 @@ int main(int argc, char *argv[]) {
         }
 
       } else {
-        
+
       }
 
       /* Process server request/updates */
@@ -384,9 +387,8 @@ int main(int argc, char *argv[]) {
         memcpy(&new_email_msg, mess, sizeof(new_email_msg));
 
         /* check time_stamp & update_index */
-        if (check_time_index(index_matrix, atoi(server_index),
-                             update_msg.server_index, update_msg.time_stamp,
-                             time_stamp, update_msg.email_index)){  
+        if (check_time_index(atoi(server_index), update_msg.server_index,
+                             update_msg.update_index, index_matrix)){
 
           struct EMAIL_MSG email_msg;
           email_msg.server_index = new_email_msg.update_msg.server_index;
@@ -401,32 +403,33 @@ int main(int argc, char *argv[]) {
       } else if (update_msg.type == READ_EMAIL) {
 
         /* check */
-        // update_msg.time_stamp = lamport_time;
-        // update_msg.update_index = lamport_index;
-        if (check_time_index(index_matrix, atoi(server_index),
-                             update_msg.server_index, update_msg.time_stamp,
-                             time_stamp, update_msg.email_index)){
+        if (check_time_index(atoi(server_index), update_msg.server_index,
+                             update_msg.update_index, index_matrix)){
+
+          read_new_email(update_msg.user_name,
+                         update_msg.email_index,
+                         update_msg.email_server_index,
+                         user_list_head);
+
+          print_user_list(user_list_head);
         }
-
-        update_msg.server_index;
-        update_msg.email_index;
-        update_msg.user_name;
-
 
       } else if (update_msg.type == DELETE_EMAIL) {
 
-        if (check_time_index(index_matrix, atoi(server_index),
-                             update_msg.server_index, update_msg.time_stamp,
-                             time_stamp, update_msg.email_index)){
+        if (check_time_index(atoi(server_index), update_msg.server_index,
+                             update_msg.update_index, index_matrix)){
+
+          // printf("delete email\n");
+
+          delete_email(update_msg.user_name,
+                       update_msg.email_index,
+                       update_msg.email_server_index,
+                       user_list_head);
         }
 
-        update_msg.server_index;
-        update_msg.email_index;
-        update_msg.user_name;
 
-
-        printf("matrix after update:\n");
-        print_index_matrix(index_matrix, 5);
+        // printf("matrix after update:\n");
+        // print_index_matrix(index_matrix, 5);
 
       }
     }
@@ -442,17 +445,17 @@ int main(int argc, char *argv[]) {
 
       if (Is_reg_memb_mess(service_type)) {
         /**
-        printf("Received REGULAR membership for group %s with %d members, "
-               "where I am member %d:\n",
-               sender, num_groups, mess_type);
+           printf("Received REGULAR membership for group %s with %d members, "
+           "where I am member %d:\n",
+           sender, num_groups, mess_type);
 
-        for (int i = 0; i < num_groups; i++)
-          printf("\t%s\n", &target_groups[i][0]);
+           for (int i = 0; i < num_groups; i++)
+           printf("\t%s\n", &target_groups[i][0]);
         */
 
         /*
-        printf("grp id is %d %d %d\n", memb_info.gid.id[0],
-               memb_info.gid.id[1], memb_info.gid.id[2]);
+          printf("grp id is %d %d %d\n", memb_info.gid.id[0],
+          memb_info.gid.id[1], memb_info.gid.id[2]);
         **/
 
         // Leave the group if it is a private group and current server is
@@ -484,7 +487,7 @@ int main(int argc, char *argv[]) {
           memcpy(&exchange_msg.index_matrix, index_matrix,
                  sizeof(index_matrix));
           ret = SP_multicast(Mbox, AGREED_MESS, sender, 0, sizeof(exchange_msg),
-			     (char *)&exchange_msg);
+                             (char *)&exchange_msg);
           if (ret < 0) {
             SP_error(ret);
             printf("\nBye.\n");
@@ -518,7 +521,7 @@ void print_user_list(struct USER_NODE *user) {
 void print_email_list(struct EMAIL_MSG_NODE head) {
   struct EMAIL_MSG_NODE *cur = head.next;
   while (cur) {
-    printf("Mail with content %s \n", cur->email_msg.email.content);
+    printf("Mail(read:%d) with content %s \n", cur->email_msg.email.read, cur->email_msg.email.content);
     cur = cur->next;
   }
 }
@@ -530,29 +533,25 @@ static void Bye() {
 }
 
 
-int check_time_index(int index_matrix[][5], int server_index1, int server_index2,
-		     int time_stamp_new, int time_stamp_cur,
-		     int update_index_new) {
+int check_time_index(int server_index1, int server_index2,
+                     int update_index_new, int index_matrix[][5]){ 
 
   printf("~~~~~~~~~~~~\n");
-  printf("%d\n", server_index1);
-  printf("%d\n", server_index2);
-  printf("time cur %d\n", time_stamp_cur);
-  printf("time new %d\n", time_stamp_new);
+  //  printf("server index1 %d\n", server_index1);
+  //  printf("server index2 %d\n", server_index2);
+  //  printf("time cur %d\n", time_stamp_cur);
+  //  printf("time new %d\n", time_stamp_new);
 
   /*
-  printf("%d, %d, %d, %d, %d, %d", server_index1, server_index2, time_stamp_new,
-	 time_stamp_cur, update_index_new,
-	 index_matrix[server_index1][server_index2]);*/
+  printf("%d, %d, %d, %d, %d, %d\n", server_index1, server_index2, time_stamp_new,
+         time_stamp_cur, update_index_new,
+         index_matrix[server_index1][server_index2]);*/
 
   if (server_index1 == server_index2)
     return 0;
 
-  if (time_stamp_new <= time_stamp_cur)
-    return 0;
-
-  if (update_index_new <= index_matrix[server_index1][server_index2])
-    return 0;
+  //if (update_index_new <= index_matrix[server_index1][server_index2])
+  //return 0;
 
   return 1;
 }
@@ -625,8 +624,11 @@ struct SERVER_EMAIL_RES_MSG read_new_email(char *user_name, int email_index,
   } else {
     struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
     while (user_email_node) {
+      // printf("server_index: %d\n", user_email_node->email_msg.server_index);
+      // printf("email_index: %d\n",  user_email_node->email_msg.email_index);
       if (user_email_node->email_msg.server_index == read_server_index &&
           user_email_node->email_msg.email_index == email_index) {
+        printf("read - found email \n");
         user_email_node->email_msg.email.read = 1;
         read_response.exist = 1;
         read_response.email = user_email_node->email_msg.email;
