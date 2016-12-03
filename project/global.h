@@ -31,11 +31,13 @@
 #define READ_EMAIL_RES        'g'
 #define DELETE_EMAIL_REQ      'h'
 #define DELETE_EMAIL_RES      'i'
+#define MEMBERSHIP_REQ        'j'
+#define MEMBERSHIP_RES        'k'
 
-#define EXCHANGE_INDEX_MATRIX 'j'
-#define NEW_EMAIL             'k'
-#define READ_EMAIL            'l'
-#define DELETE_EMAIL          'm'
+#define EXCHANGE_INDEX_MATRIX 'l'
+#define NEW_EMAIL             'm'
+#define READ_EMAIL            'n'
+#define DELETE_EMAIL          'o'
 
 /* email struct */
 struct EMAIL {
@@ -122,6 +124,10 @@ struct CLIENT_DELETE_EMAIL_MSG {
   char user_name[USERNAME_LEN];
 };
 
+struct CLIENT_MEMBERSHIP_MSG {
+  struct CLIENT_MSG msg;
+};
+
 /* msg from server to client */
 struct SERVER_MSG {
   char type;
@@ -149,6 +155,10 @@ struct SERVER_DELETE_RES_MSG {
   int success;
 };
 
+struct SERVER_MEMBERSHIP_RES_MSG {
+  struct SERVER_MSG msg;
+  int group_members[5];
+};
 
 /* message bewteen servers */
 struct EXCHANGE_INDEX_MATRIX_MSG {

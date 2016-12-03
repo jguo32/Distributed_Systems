@@ -281,6 +281,24 @@ static void user_command() {
 
     break;
 
+  case 'v':
+    {
+      struct CLIENT_MEMBERSHIP_MSG membership_msg;
+      membership_msg.msg.source.type = CLIENT;
+      membership_msg.msg.type = MEMBERSHIP_REQ;
+
+      ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0,
+                         sizeof(membership_msg),
+                         (char *)&membership_msg);
+
+      if (ret < 0) {
+        SP_error(ret);
+        Bye();
+      }
+
+    }
+    break;
+
   case 'q':
     Bye();
     break;
@@ -390,6 +408,19 @@ static void read_message() {
 
     printf("\nUser> ");
     fflush(stdout);
+  } else if (msg.type == MEMBERSHIP_RES) {
+    struct SERVER_MEMBERSHIP_RES_MSG membership_res_msg;
+    memcpy(&membership_res_msg, mess, sizeof(membership_res_msg));
+    printf("\n current member in group: ");
+    for (int i = 0; i < 5; i ++) {
+      if (membership_res_msg.group_members[i] == 1 ) {
+        printf("%d ", i);
+      }
+    }
+    printf("\n");
+    printf("\nUser> ");
+    fflush(stdout);
+
   }
 
 }
