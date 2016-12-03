@@ -94,6 +94,7 @@ static void user_command() {
       }
       printf("User logged in as: %s\n", user_name);
       status = LOGIN;
+      cur_server_index = -1;
       break;
     }
 
