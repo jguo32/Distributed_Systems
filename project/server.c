@@ -206,7 +206,7 @@ int main(int argc, char *argv[]) {
 
         /*create update message, mutlicast to group*/
         struct UPDATE_MSG update_msg =
-          create_update_msg(NEW_EMAIL, time_stamp, lamport_index, atoi(server_index),
+          create_update_msg(NEW_EMAIL, time_stamp, *lamport_index, atoi(server_index),
                             email_counter, atoi(server_index),
                             send_email_msg.receiver_name);
 
@@ -301,7 +301,7 @@ int main(int argc, char *argv[]) {
 
 
         struct UPDATE_MSG update_read_msg =
-          create_update_msg(READ_EMAIL, time_stamp, lamport_index,
+          create_update_msg(READ_EMAIL, time_stamp, *lamport_index,
                             atoi(server_index), read_request.email_index,
                             read_request.server_index, read_request.user_name);
 
@@ -338,7 +338,7 @@ int main(int argc, char *argv[]) {
         /* create update message, and multicast to group*/
 
         struct UPDATE_MSG update_delete_msg =
-          create_update_msg(DELETE_EMAIL, time_stamp, lamport_index,
+          create_update_msg(DELETE_EMAIL, time_stamp, *lamport_index,
                             atoi(server_index), delete_request.email_index,
                             delete_request.server_index, delete_request.user_name);
 
@@ -447,6 +447,7 @@ int main(int argc, char *argv[]) {
         struct NEW_EMAIL_MSG new_email_msg;
         memcpy(&new_email_msg, mess, sizeof(new_email_msg));
 	printf("New email update with server index %d.\n", new_email_msg.update_msg.email_server_index);
+  printf("update index %d.\n", update_msg.update_index);
 
         /* check time_stamp & update_index */
         if (check_time_index(atoi(server_index), update_msg.server_index,
