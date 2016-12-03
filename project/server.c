@@ -625,10 +625,9 @@ int check_time_index(int server_index1, int server_index2, int update_index_new,
   //  printf("time new %d\n", time_stamp_new);
 
 
-  printf("%d, %d, %d, %d, %d, %d\n", server_index1, server_index2,
-  time_stamp_new,
-         time_stamp_cur, update_index_new,
-         index_matrix[server_index1][server_index2]);*/
+  printf("%d, %d, %d, %d\n", server_index1, server_index2,
+         update_index_new,
+         index_matrix[server_index1][server_index2]);
 
   if (server_index1 == server_index2)
     return 0;
