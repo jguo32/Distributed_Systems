@@ -374,7 +374,9 @@ int main(int argc, char *argv[]) {
       time_stamp = MAX(time_stamp, update_msg.time_stamp);
 
       /* Append the update message to the list if it is not EXCHANGE */
-      add_update_msg(update_msg);
+      if (update_msg.type != EXCHANGE_INDEX_MATRIX) {
+        add_update_msg(update_msg);
+      }
 
       if (update_msg.type == EXCHANGE_INDEX_MATRIX) {
         /* Form exchange message to update matrix */
