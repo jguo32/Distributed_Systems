@@ -3,6 +3,7 @@
 #define MAX_MEMBERS 100
 #define MAX_MESSLEN 102400
 
+#define FILENAME_LEN 50
 #define USERNAME_LEN 80
 #define SUBJECT_LEN 200
 #define CONTENT_LEN 1000
