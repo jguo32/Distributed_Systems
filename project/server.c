@@ -194,7 +194,6 @@ int main(int argc, char *argv[]) {
 
         add_new_email(email_msg, user_list_head);
 
-        print_user_list(user_list_head);
 
         /*create update message, mutlicast to group*/
         struct NEW_EMAIL_MSG new_email_msg;
@@ -203,10 +202,14 @@ int main(int argc, char *argv[]) {
         new_email_msg.update_msg.time_stamp = time_stamp;
         new_email_msg.update_msg.update_index = *lamport_index;
         new_email_msg.update_msg.server_index = atoi(server_index);
+	new_email_msg.update_msg.email_server_index = atoi(server_index);
         new_email_msg.update_msg.email_index = email_counter;
         new_email_msg.email = send_email_msg.email;
         memcpy(new_email_msg.update_msg.user_name, send_email_msg.receiver_name,
                sizeof(send_email_msg.receiver_name));
+
+	printf("Server index in the new email msg is %d\n", new_email_msg.update_msg.server_index);
+        print_user_list(user_list_head);
 
         // multicast this update message to all other servers
         ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
@@ -263,7 +266,7 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
         /* Process read request */
-        print_user_list(user_list_head);
+        //print_user_list(user_list_head);
 
       } else if (client_msg.type == READ_EMAIL_REQ) {
 
@@ -399,14 +402,15 @@ int main(int argc, char *argv[]) {
         }
 
       } else if (update_msg.type == NEW_EMAIL) {
-	      printf("Received new email update from server %d\n", update_msg.server_index);
         struct NEW_EMAIL_MSG new_email_msg;
         memcpy(&new_email_msg, mess, sizeof(new_email_msg));
+	printf("New email update with server index %d.\n", new_email_msg.update_msg.email_server_index);
 
         /* check time_stamp & update_index */
         if (check_time_index(atoi(server_index), update_msg.server_index,
                              update_msg.update_index, index_matrix)) {
 
+	      printf("Received new email update from server %d\n", update_msg.server_index);
           struct EMAIL_MSG email_msg;
           email_msg.server_index = new_email_msg.update_msg.email_server_index;
           email_msg.email_index = new_email_msg.update_msg.email_index;
@@ -447,8 +451,10 @@ int main(int argc, char *argv[]) {
                               update_msg.server_index, update_msg.update_index);
         }
       }
+      /**
       printf("index_matrix after update from %d\n", update_msg.server_index);
       print_index_matrix(index_matrix);
+      */
     }
 
     /* Actions when there is membership change */
@@ -571,7 +577,6 @@ void update_index_matrix(int index_matrix[5][5], int group_members[5],
 int check_time_index(int server_index1, int server_index2, int update_index_new,
                      int index_matrix[][5]) {
 
-  printf("~~~~~~~~~~~~\n");
   //  printf("server index1 %d\n", server_index1);
   //  printf("server index2 %d\n", server_index2);
   //  printf("time cur %d\n", time_stamp_cur);
