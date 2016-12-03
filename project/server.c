@@ -192,8 +192,8 @@ int main(int argc, char *argv[]) {
         email_counter += 1;
         time_stamp += 1;
 
+	/* Increment the corresponding position of the index matrix */
         increment_index_matrix(index_matrix, group_members, atoi(server_index));
-        // TODO: append the update message to the list
 
         /* Create a new email msg */
         struct EMAIL_MSG email_msg;
@@ -214,6 +214,9 @@ int main(int argc, char *argv[]) {
 
         new_email_msg.update_msg = update_msg;
         new_email_msg.email = send_email_msg.email;
+
+	/* Append the update message to the list */
+	add_update_msg(update_msg);
 
 	printf("Server index in the new email msg is %d\n", new_email_msg.update_msg.server_index);
         print_user_list(user_list_head);
@@ -294,7 +297,6 @@ int main(int argc, char *argv[]) {
         }
 
         time_stamp += 1;
-        //*lamport_index += 1;
         increment_index_matrix(index_matrix, group_members, atoi(server_index));
 
         /*create update message, and multicast to group*/
@@ -304,6 +306,9 @@ int main(int argc, char *argv[]) {
           create_update_msg(READ_EMAIL, time_stamp, *lamport_index,
                             atoi(server_index), read_request.email_index,
                             read_request.server_index, read_request.user_name);
+
+	/* Append the update message to the list */
+	add_update_msg(update_msg);
 
         ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
                            sizeof(update_read_msg), (char *)&update_read_msg);
@@ -332,15 +337,15 @@ int main(int argc, char *argv[]) {
         }
 
         time_stamp += 1;
-        // lamport_index += 1;
         increment_index_matrix(index_matrix, group_members, atoi(server_index));
 
         /* create update message, and multicast to group*/
-
         struct UPDATE_MSG update_delete_msg =
           create_update_msg(DELETE_EMAIL, time_stamp, *lamport_index,
                             atoi(server_index), delete_request.email_index,
                             delete_request.server_index, delete_request.user_name);
+	/* Append the update message to the list */
+	add_update_msg(update_msg);
 
         ret =
             SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
@@ -368,6 +373,9 @@ int main(int argc, char *argv[]) {
       /* Update local Lamport timestamp first */
       time_stamp = MAX(time_stamp, update_msg.time_stamp);
 
+      /* Append the update message to the list if it is not EXCHANGE */
+      add_update_msg(update_msg);
+
       if (update_msg.type == EXCHANGE_INDEX_MATRIX) {
         /* Form exchange message to update matrix */
         struct EXCHANGE_INDEX_MATRIX_MSG exchange_index_msg;
@@ -388,7 +396,6 @@ int main(int argc, char *argv[]) {
             index_matrix[i][j] = MAX(index_matrix[i][j], incoming_matrix[i][j]);
           }
         }
-
 
         /* check the update_msg that needs to be sent out*/
         struct UPDATE_MSG_NODE *update_msg_head =
@@ -769,7 +776,9 @@ int delete_email(char *user_name, int delete_email_index,
   return res;
 }
 
-void add_update_msg(struct UPDATE_MSG update_msg, int server_index) {
+void add_update_msg(struct UPDATE_MSG update_msg) {
+  int server_index;
+  server_index = update_msg.server_index;
 
   struct UPDATE_MSG_NODE *update_msg_node =
       (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
