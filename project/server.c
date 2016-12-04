@@ -281,7 +281,6 @@ int main(int argc, char *argv[]) {
           struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
           while (user_email_node) {
             email_list[email_num++] = user_email_node->email_msg;
-	    printf("Added email: read %d, to %s, subject: %s.\n", email_list[email_num - 1].email.read, email_list[email_num - 1].email.to, email_list[email_num - 1].email.subject);
             user_email_node = user_email_node->next;
           }
         }
@@ -506,15 +505,6 @@ int main(int argc, char *argv[]) {
             // multicast this update message to all other servers
             if (update_msg_next->update_msg.type == NEW_EMAIL) {
 
-              /**
-                printf(
-                    "user name: %s, email index: %d, email_server_index: %d
-                .\n",
-                    update_msg_next->update_msg.user_name,
-                    update_msg_next->update_msg.email_index,
-                    update_msg_next->update_msg.email_server_index);
-                    */
-
               struct EMAIL_MSG_NODE *email_msg_node = find_email(
                   user_list_head, update_msg_next->update_msg.user_name,
                   update_msg_next->update_msg.email_index,
@@ -545,8 +535,10 @@ int main(int argc, char *argv[]) {
                 exit(0);
               }
             }
-            index_matrix[incoming_server_index][update_msg_next->update_msg
-                                                    .server_index] += 1;
+            //index_matrix[incoming_server_index][update_msg_next->update_msg
+            //                                        .server_index] += 1;
+
+	    index_matrix[ incoming_server_index][update_msg_next->update_msg.server_index] = MAX( index_matrix[ incoming_server_index ][ update_msg_next->update_msg.server_index ], update_msg_next->update_msg.update_index );
 
             update_msg_head->next = update_msg_next->next;
 
@@ -603,7 +595,6 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      printf("Before delete:\n");
       print_update_msg_list();
       //      print_index_matrix(index_matrix);
 
@@ -799,19 +790,11 @@ void update_index_matrix(int index_matrix[5][5], int group_members[5],
 int check_time_index(int server_index1, int server_index2, int update_index_new,
                      int index_matrix[][5]) {
 
-  //  printf("server index1 %d\n", server_index1);
-  //  printf("server index2 %d\n", server_index2);
-  //  printf("time cur %d\n", time_stamp_cur);
-  //  printf("time new %d\n", time_stamp_new);
-
-  // printf("%d, %d, %d, %d\n", server_index1, server_index2, update_index_new,
-  //     index_matrix[server_index1][server_index2]);
-
   if (server_index1 == server_index2)
     return 0;
 
-  // if (update_index_new <= index_matrix[server_index1][server_index2])
-  // return 0;
+  if (update_index_new <= index_matrix[server_index1][server_index2])
+    return 0;
 
   return 1;
 }
