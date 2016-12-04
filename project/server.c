@@ -101,6 +101,8 @@ int main(int argc, char *argv[]) {
         (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
     update_msg_tail[i] =
         (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
+
+    update_msg_tail[i]->next = NULL;
     update_msg_head[i]->next = update_msg_tail[i];
     update_msg_tail[i]->pre = update_msg_head[i];
     update_msg_head[i]->update_msg.update_index =
@@ -242,6 +244,10 @@ int main(int argc, char *argv[]) {
 
         /* Append the update message to the list */
         add_update_msg(update_msg);
+        printf("Real time stamp: %d\n", time_stamp);
+        printf(
+            "Update msg time stamp: %d, %d\n", update_msg.time_stamp,
+            update_msg_head[atoi(server_index)]->next->update_msg.time_stamp);
 
         print_user_list(user_list_head);
 
@@ -408,15 +414,15 @@ int main(int argc, char *argv[]) {
       struct UPDATE_MSG update_msg;
       memcpy(&update_msg, mess, sizeof(update_msg));
 
-      /* Update local Lamport timestamp first */
-      time_stamp = MAX(time_stamp, update_msg.time_stamp);
-
       /* Append the update message to the list if it is not EXCHANGE */
       if (update_msg.type != EXCHANGE_INDEX_MATRIX &&
           check_time_index(atoi(server_index), update_msg.server_index,
                            update_msg.update_index, index_matrix)) {
         add_update_msg(update_msg);
+        /* Update local Lamport timestamp first */
+        time_stamp = MAX(time_stamp, update_msg.time_stamp);
       }
+
       if (check_time_index(atoi(server_index), update_msg.server_index,
                            update_msg.update_index, index_matrix)) {
 
@@ -464,7 +470,6 @@ int main(int argc, char *argv[]) {
 
               while (index_matrix[incoming_server_index][j] <
                      index_matrix[local_server_index][j]) {
-                printf("Did prepared update list.\n");
                 index_matrix[incoming_server_index][j] += 1;
                 add_update_msg_lst(update_msg_head, j,
                                    index_matrix[incoming_server_index][j]);
@@ -474,12 +479,10 @@ int main(int argc, char *argv[]) {
 
           /*send out the update_msg*/
           while (update_msg_head->next) {
-            printf("Entered the while loop.\n");
 
             // Sort the update messages by timestamp and send them one by one
             struct UPDATE_MSG_NODE *update_msg_next = update_msg_head->next;
-            printf("update_msg_next-> update_msg type: %c.\n",
-                   update_msg_next->update_msg.type);
+	    printf("update msg next: update_msg index: %d.\n", update_msg_next->update_msg.update_index);
 
             // multicast this update message to all other servers
             if (update_msg_next->update_msg.type == NEW_EMAIL) {
@@ -496,12 +499,23 @@ int main(int argc, char *argv[]) {
               // multicast this update message to all other servers
               ret = SP_multicast(Mbox, AGREED_MESS, sender, 0,
                                  sizeof(new_email_msg), (char *)&new_email_msg);
+              if (ret < 0) {
+                SP_error(ret);
+                printf("\nBye.\n");
+                exit(0);
+              }
+
             } else {
 
               struct UPDATE_MSG update_msg = update_msg_next->update_msg;
 
               ret = SP_multicast(Mbox, AGREED_MESS, sender, 0,
                                  sizeof(update_msg), (char *)&update_msg);
+              if (ret < 0) {
+                SP_error(ret);
+                printf("\nBye.\n");
+                exit(0);
+              }
             }
 
             update_msg_head->next = update_msg_next->next;
@@ -953,9 +967,9 @@ void add_update_msg_lst(struct UPDATE_MSG_NODE *head, int server_index,
              sizeof(node->update_msg));
       printf("Update msg type %c, timestamp %d\n", new_node->update_msg.type,
              new_node->update_msg.time_stamp);
-      // new_node->update_msg = node->update_msg;
 
       new_node->next = pre->next;
+      new_node->pre = pre;
       pre->next = new_node;
     }
     node = node->next;
