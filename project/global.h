@@ -53,6 +53,7 @@ struct EMAIL {
 struct EMAIL_MSG {
   int server_index;
   int email_index;
+  int time_stamp;
   struct EMAIL email;
 };
 
