@@ -91,8 +91,6 @@ int main(int argc, char *argv[]) {
   int *lamport_index;
   int group_members[5];
 
-  /* Variables for partition */
-
   struct USER_NODE *user_list_head =
       (struct USER_NODE *)malloc(sizeof(struct USER_NODE));
 
@@ -477,15 +475,38 @@ int main(int argc, char *argv[]) {
             }
           }
 
+          struct UPDATE_MSG_NODE *test = update_msg_head->next;
+          ;
+          while (test) {
+            if (test->update_msg.update_index > 0) {
+              printf("Update msg: type: %c, update_index: %d, server_index: "
+                     "%d, email_index: %d.\n",
+                     test->update_msg.type, test->update_msg.update_index,
+                     test->update_msg.server_index,
+                     test->update_msg.email_index);
+            }
+
+            test = test->next;
+          }
+
           /*send out the update_msg*/
           while (update_msg_head->next) {
 
             // Sort the update messages by timestamp and send them one by one
             struct UPDATE_MSG_NODE *update_msg_next = update_msg_head->next;
-	    printf("update msg next: update_msg index: %d.\n", update_msg_next->update_msg.update_index);
+            //printf("update msg next: update_msg index: %d.\n",
+                   //update_msg_next->update_msg.update_index);
 
             // multicast this update message to all other servers
             if (update_msg_next->update_msg.type == NEW_EMAIL) {
+
+	    /**
+              printf(
+                  "user name: %s, email index: %d, email_server_index: %d .\n",
+                  update_msg_next->update_msg.user_name,
+                  update_msg_next->update_msg.email_index,
+                  update_msg_next->update_msg.email_server_index);
+		  */
 
               struct EMAIL_MSG_NODE *email_msg_node = find_email(
                   user_list_head, update_msg_next->update_msg.user_name,
@@ -803,11 +824,13 @@ find_user_email_node(struct EMAIL_MSG_NODE *user_email_head, int email_index,
                      int email_server_index) {
 
   struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
+  //TODO: problem
   while (user_email_node) {
     if (user_email_node->email_msg.email_index == email_index &&
         user_email_node->email_msg.server_index == email_server_index) {
       return user_email_node;
     }
+    user_email_node = user_email_node->next;
   }
   return NULL;
 }
@@ -817,9 +840,11 @@ struct EMAIL_MSG_NODE *find_email(struct USER_NODE *user_list_head,
                                   int email_server_index) {
   struct EMAIL_MSG_NODE *user_email_head =
       find_user_email_head(user_name, user_list_head);
-  if (user_email_head)
+  if (user_email_head) {
+
     return find_user_email_node(user_email_head, email_index,
                                 email_server_index);
+    }
 
   return NULL;
 }
@@ -965,8 +990,8 @@ void add_update_msg_lst(struct UPDATE_MSG_NODE *head, int server_index,
           (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
       memcpy(&new_node->update_msg, &node->update_msg,
              sizeof(node->update_msg));
-      printf("Update msg type %c, timestamp %d\n", new_node->update_msg.type,
-             new_node->update_msg.time_stamp);
+      //printf("Update msg type %c, timestamp %d\n", new_node->update_msg.type,
+       //      new_node->update_msg.time_stamp);
 
       new_node->next = pre->next;
       new_node->pre = pre;
