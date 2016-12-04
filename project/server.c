@@ -52,6 +52,7 @@ struct UPDATE_MSG create_update_msg(char type, int time_stamp, int lamport_index
                                     int server_index, int email_index, int email_server_index,
                                     char* user_name);
 
+
 void write_index_matrix(char *file_name, int index_matrix[5][5]);
 void read_index_matrix(char *file_name, int mat[5][5]);
 
@@ -929,9 +930,11 @@ void add_update_msg_lst(struct UPDATE_MSG_NODE *head, int server_index,
       }
 
       // deep copy
-      struct UPDATE_MSG_NODE *new_node =
+      struct UPDATE_MSG_NODE *new_node = 
           (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
-      new_node->update_msg = node->update_msg;
+      memcpy(&node->update_msg, &new_node->update_msg, sizeof(node->update_msg));
+      // new_node->update_msg = node->update_msg;
+
 
       new_node->next = pre->next;
       pre->next = new_node;
