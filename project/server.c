@@ -454,12 +454,13 @@ int main(int argc, char *argv[]) {
             }
           }
         }
-
         /*send out the update_msg*/
         while (update_msg_head->next) {
 
           // Sort the update messages by timestamp and send them one by one
           struct UPDATE_MSG_NODE *update_msg_next = update_msg_head->next;
+	  	printf("update_msg_next-> update_msg type: %c.\n", update_msg_next->update_msg.type);
+
           // multicast this update message to all other servers
           if (update_msg_next->update_msg.type == NEW_EMAIL) {
 
@@ -542,7 +543,7 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      // print_update_msg_list();
+      print_update_msg_list();
       //      print_index_matrix(index_matrix);
 
       /* discard unused update messages*/
@@ -560,6 +561,7 @@ int main(int argc, char *argv[]) {
          print_index_matrix(index_matrix);
       */
     }
+	// print_update_msg_list();
 
     /* Actions when there is membership change */
     if (Is_membership_mess(service_type)) {
@@ -570,11 +572,13 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
 
+      /**
       printf("Current membership: ");
       for (int i = 0; i < 5; i++) {
         printf("%d ", group_members[i]);
       }
       printf("\n");
+      */
       if (Is_reg_memb_mess(service_type)) {
         // Leave the group if it is a private group and current server is
         // the only member
@@ -625,14 +629,6 @@ int main(int argc, char *argv[]) {
             }
             printf("\n");
 	    */
-
-            if (num_vs_sets < 0) {
-              printf("BUG: membership message has more then %d vs sets. "
-                     "Recompile with larger MAX_VSSETS\n",
-                     MAX_VSSETS);
-              SP_error(num_vs_sets);
-              exit(1);
-            }
 
             struct EXCHANGE_INDEX_MATRIX_MSG exchange_msg;
             exchange_msg.update_msg.source.type = SERVER;
@@ -968,7 +964,7 @@ void write_index_matrix(char *file_name, int mat[5][5]) {
     // exit(0);
   }
 
-  printf("write index matrix\n");
+  //printf("write index matrix\n");
   for (int i = 0; i < 5; i ++)
     fprintf(fw, "%d %d %d %d %d\n", mat[i][0], mat[i][1], mat[i][2], mat[i][3], mat[i][4]);
 
