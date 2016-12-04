@@ -437,6 +437,10 @@ int main(int argc, char *argv[]) {
           memcpy(incoming_matrix, exchange_index_msg.index_matrix,
                  sizeof(incoming_matrix));
 
+	  /**
+	  printf("incoming matrix\n");
+	  print_index_matrix(incoming_matrix);
+	  */
           /* Update other field of the matrix */
           for (int i = 0; i < 5; i++) {
             if (i == local_server_index) {
@@ -462,21 +466,23 @@ int main(int argc, char *argv[]) {
               /**
               for (int k = incoming_matrix[incoming_server_index][j] + 1;
                    k <= index_matrix[local_server_index][j]; k++) {
-              */
               index_matrix[incoming_server_index][j] =
                   incoming_matrix[incoming_server_index][j];
+	      */
+		int update_start_point;
+	        update_start_point = incoming_matrix[incoming_server_index][j] + 1;
 
-              while (index_matrix[incoming_server_index][j] <
+              while (update_start_point <=
                      index_matrix[local_server_index][j]) {
-                index_matrix[incoming_server_index][j] += 1;
-                add_update_msg_lst(update_msg_head, j,
-                                   index_matrix[incoming_server_index][j]);
+                //index_matrix[incoming_server_index][j] += 1;
+                add_update_msg_lst(update_msg_head, j, update_start_point);
+		update_start_point += 1;
               }
             }
           }
 
           struct UPDATE_MSG_NODE *test = update_msg_head->next;
-          ;
+	  
           while (test) {
             if (test->update_msg.update_index > 0) {
               printf("Update msg: type: %c, update_index: %d, server_index: "
@@ -538,6 +544,7 @@ int main(int argc, char *argv[]) {
                 exit(0);
               }
             }
+	    index_matrix[incoming_server_index][update_msg_next->update_msg.server_index] += 1;
 
             update_msg_head->next = update_msg_next->next;
 
@@ -548,6 +555,7 @@ int main(int argc, char *argv[]) {
           free(update_msg_head);
           update_msg_head = NULL;
 
+	  // TODO: notify the client to re-list mail when there is an update
         } else if (update_msg.type == NEW_EMAIL) {
           struct NEW_EMAIL_MSG new_email_msg;
           memcpy(&new_email_msg, mess, sizeof(new_email_msg));
@@ -824,7 +832,6 @@ find_user_email_node(struct EMAIL_MSG_NODE *user_email_head, int email_index,
                      int email_server_index) {
 
   struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
-  //TODO: problem
   while (user_email_node) {
     if (user_email_node->email_msg.email_index == email_index &&
         user_email_node->email_msg.server_index == email_server_index) {
