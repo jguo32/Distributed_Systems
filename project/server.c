@@ -99,8 +99,6 @@ int main(int argc, char *argv[]) {
   int *lamport_index;
   int group_members[5];
 
-  /* Variables for partition */
-
   struct USER_NODE *user_list_head =
     (struct USER_NODE *)malloc(sizeof(struct USER_NODE));
 
@@ -108,7 +106,9 @@ int main(int argc, char *argv[]) {
     update_msg_head[i] =
       (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
     update_msg_tail[i] =
-      (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
+        (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
+    update_msg_tail[i]->next = NULL;
+
     update_msg_head[i]->next = update_msg_tail[i];
     update_msg_tail[i]->pre = update_msg_head[i];
     update_msg_head[i]->update_msg.update_index =
@@ -257,6 +257,10 @@ int main(int argc, char *argv[]) {
 
         /* Append the update message to the list */
         add_update_msg(update_msg);
+        printf("Real time stamp: %d\n", time_stamp);
+        printf(
+            "Update msg time stamp: %d, %d\n", update_msg.time_stamp,
+            update_msg_head[atoi(server_index)]->next->update_msg.time_stamp);
 
         /* write data to disk */
         write_index_matrix(atoi(server_index), index_matrix);
@@ -454,15 +458,15 @@ int main(int argc, char *argv[]) {
       struct UPDATE_MSG update_msg;
       memcpy(&update_msg, mess, sizeof(update_msg));
 
-      /* Update local Lamport timestamp first */
-      time_stamp = MAX(time_stamp, update_msg.time_stamp);
-
       /* Append the update message to the list if it is not EXCHANGE */
       if (update_msg.type != EXCHANGE_INDEX_MATRIX &&
           check_time_index(atoi(server_index), update_msg.server_index,
                            update_msg.update_index, index_matrix)) {
         add_update_msg(update_msg);
+        /* Update local Lamport timestamp first */
+        time_stamp = MAX(time_stamp, update_msg.time_stamp);
       }
+
       if (check_time_index(atoi(server_index), update_msg.server_index,
                            update_msg.update_index, index_matrix)) {
 
@@ -479,6 +483,10 @@ int main(int argc, char *argv[]) {
           memcpy(incoming_matrix, exchange_index_msg.index_matrix,
                  sizeof(incoming_matrix));
 
+	  /**
+	  printf("incoming matrix\n");
+	  print_index_matrix(incoming_matrix);
+	  */
           /* Update other field of the matrix */
           for (int i = 0; i < 5; i++) {
             if (i == local_server_index) {
@@ -507,35 +515,58 @@ int main(int argc, char *argv[]) {
               */
               index_matrix[incoming_server_index][j] =
                 incoming_matrix[incoming_server_index][j];
+	      
+		      int update_start_point;
+	        update_start_point = incoming_matrix[incoming_server_index][j] + 1;
 
-              while (index_matrix[incoming_server_index][j] <
+              while (update_start_point <=
                      index_matrix[local_server_index][j]) {
-                printf("Did prepared update list.\n");
-                index_matrix[incoming_server_index][j] += 1;
-                add_update_msg_lst(update_msg_head, j,
-                                   index_matrix[incoming_server_index][j]);
+                //index_matrix[incoming_server_index][j] += 1;
+                add_update_msg_lst(update_msg_head, j, update_start_point);
+		update_start_point += 1;
               }
             }
           }
 
           write_index_matrix(atoi(server_index), index_matrix);
 
+          struct UPDATE_MSG_NODE *test = update_msg_head->next;
+	  
+          while (test) {
+            if (test->update_msg.update_index > 0) {
+              printf("Update msg: type: %c, update_index: %d, server_index: "
+                     "%d, email_index: %d.\n",
+                     test->update_msg.type, test->update_msg.update_index,
+                     test->update_msg.server_index,
+                     test->update_msg.email_index);
+            }
+
+            test = test->next;
+          }
+
           /*send out the update_msg*/
           while (update_msg_head->next) {
-            printf("Entered the while loop.\n");
 
             // Sort the update messages by timestamp and send them one by one
             struct UPDATE_MSG_NODE *update_msg_next = update_msg_head->next;
-            printf("update_msg_next-> update_msg type: %c.\n",
-                   update_msg_next->update_msg.type);
+            //printf("update msg next: update_msg index: %d.\n",
+                   //update_msg_next->update_msg.update_index);
 
             // multicast this update message to all other servers
             if (update_msg_next->update_msg.type == NEW_EMAIL) {
 
-              struct EMAIL_MSG_NODE *email_msg_node
-                = find_email(user_list_head, update_msg_next->update_msg.user_name,
-                             update_msg_next->update_msg.email_index,
-                             update_msg_next->update_msg.email_server_index);
+	    /**
+              printf(
+                  "user name: %s, email index: %d, email_server_index: %d .\n",
+                  update_msg_next->update_msg.user_name,
+                  update_msg_next->update_msg.email_index,
+                  update_msg_next->update_msg.email_server_index);
+		  */
+
+              struct EMAIL_MSG_NODE *email_msg_node = find_email(
+                  user_list_head, update_msg_next->update_msg.user_name,
+                  update_msg_next->update_msg.email_index,
+                  update_msg_next->update_msg.email_server_index);
 
               struct NEW_EMAIL_MSG new_email_msg;
               new_email_msg.update_msg = update_msg_next->update_msg;
@@ -544,13 +575,25 @@ int main(int argc, char *argv[]) {
               // multicast this update message to all other servers
               ret = SP_multicast(Mbox, AGREED_MESS, sender, 0,
                                  sizeof(new_email_msg), (char *)&new_email_msg);
+              if (ret < 0) {
+                SP_error(ret);
+                printf("\nBye.\n");
+                exit(0);
+              }
+
             } else {
 
               struct UPDATE_MSG update_msg = update_msg_next->update_msg;
 
               ret = SP_multicast(Mbox, AGREED_MESS, sender, 0,
                                  sizeof(update_msg), (char *)&update_msg);
+              if (ret < 0) {
+                SP_error(ret);
+                printf("\nBye.\n");
+                exit(0);
+              }
             }
+	    index_matrix[incoming_server_index][update_msg_next->update_msg.server_index] += 1;
 
             index_matrix[incoming_server_index][update_msg_next->update_msg.server_index] += 1;
             update_msg_head->next = update_msg_next->next;
@@ -562,6 +605,7 @@ int main(int argc, char *argv[]) {
           free(update_msg_head);
           update_msg_head = NULL;
 
+	  // TODO: notify the client to re-list mail when there is an update
         } else if (update_msg.type == NEW_EMAIL) {
           struct NEW_EMAIL_MSG new_email_msg;
           memcpy(&new_email_msg, mess, sizeof(new_email_msg));
@@ -867,6 +911,7 @@ find_user_email_node(struct EMAIL_MSG_NODE *user_email_head, int email_index,
         user_email_node->email_msg.server_index == email_server_index) {
       return user_email_node;
     }
+    user_email_node = user_email_node->next;
   }
   return NULL;
 }
@@ -875,10 +920,12 @@ struct EMAIL_MSG_NODE *find_email(struct USER_NODE *user_list_head,
                                   char *user_name, int email_index,
                                   int email_server_index) {
   struct EMAIL_MSG_NODE *user_email_head =
-    find_user_email_head(user_name, user_list_head);
-  if (user_email_head)
+      find_user_email_head(user_name, user_list_head);
+  if (user_email_head) {
+
     return find_user_email_node(user_email_head, email_index,
                                 email_server_index);
+    }
 
   return NULL;
 }
@@ -1024,11 +1071,11 @@ void add_update_msg_lst(struct UPDATE_MSG_NODE *head, int server_index,
         (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
       memcpy(&new_node->update_msg, &node->update_msg,
              sizeof(node->update_msg));
-      printf("Update msg type %c, timestamp %d\n", new_node->update_msg.type,
-             new_node->update_msg.time_stamp);
-      // new_node->update_msg = node->update_msg;
+      //printf("Update msg type %c, timestamp %d\n", new_node->update_msg.type,
+       //      new_node->update_msg.time_stamp);
 
       new_node->next = pre->next;
+      new_node->pre = pre;
       pre->next = new_node;
     }
     node = node->next;
