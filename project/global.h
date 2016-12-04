@@ -3,7 +3,7 @@
 #define MAX_MEMBERS 100
 #define MAX_MESSLEN 102400
 
-#define DIR_LEN      100 
+#define DIR_LEN      100
 #define FILENAME_LEN 50
 #define USERNAME_LEN 80
 #define SUBJECT_LEN  200
@@ -54,6 +54,7 @@ struct EMAIL {
 struct EMAIL_MSG {
   int server_index;
   int email_index;
+  int time_stamp;
   struct EMAIL email;
 };
 
