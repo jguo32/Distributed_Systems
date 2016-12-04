@@ -1098,4 +1098,3 @@ void getDir() {
   else
     perror ("Couldn't open the directory");
 }
->>>>>>> be7375872152e9e85a37830fc4e0b0c4766cab7c
