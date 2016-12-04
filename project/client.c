@@ -374,16 +374,21 @@ static void read_message() {
       if (email_list[i].email.read == 1)
         read = "read";
 
-      printf("%-5d %-10s %-12s %s\n",
+      printf("%-5d %-10s %-12s %s ",
              i+1, read,
              email_list[i].email.from,
              email_list[i].email.subject);
+      printf("%-5d %-5d", email_list[i].server_index,
+             email_list[i].email_index);
+
+      printf("\n");
     }
     printf("\nUser> ");
     fflush(stdout);
 
   } else if (msg.type == READ_EMAIL_RES) {
 
+    /*TODO check if has to update lst*/
     struct SERVER_EMAIL_RES_MSG email_msg;
     memcpy(&email_msg, mess, sizeof(email_msg));
     if (email_msg.exist == 0) {

@@ -2,12 +2,14 @@
 #include "global.h"
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <dirent.h>
 #include <unistd.h>
+
 
 #define MAX(x, y) (x > y ? x : y)
 #define PORT "10580"
@@ -17,6 +19,8 @@ static char User[80];
 static char Spread_name[80];
 static char Private_group[MAX_GROUP_NAME];
 static mailbox Mbox;
+
+int mkdir(const char *pathname, mode_t mode);
 
 void print_index_matrix(int matrix[5][5]);
 void print_email_list(struct EMAIL_MSG_NODE head);
@@ -43,19 +47,22 @@ int check_time_index(int server_index1, int server_index2, int update_index_new,
 
 void add_update_msg_lst(struct UPDATE_MSG_NODE *head, int server_index,
                         int update_index);
-struct EMAIL_MSG_NODE *find_user_email_head(char *user_name, struct USER_NODE *user_list_head);
-struct EMAIL_MSG_NODE *find_user_email_node(struct EMAIL_MSG_NODE *user_email_head, int email_index, int email_server_index);
-struct EMAIL_MSG_NODE *find_email(struct USER_NODE *user_list_head, char *user_name,
-                                  int email_index, int email_server_index);
+struct EMAIL_MSG_NODE *find_user_email_head(char *user_name,
+                                            struct USER_NODE *user_list_head);
+struct EMAIL_MSG_NODE *
+find_user_email_node(struct EMAIL_MSG_NODE *user_email_head, int email_index,
+                     int email_server_index);
+struct EMAIL_MSG_NODE *find_email(struct USER_NODE *user_list_head,
+                                  char *user_name, int email_index,
+                                  int email_server_index);
 
+struct UPDATE_MSG create_update_msg(char type, int time_stamp,
+                                    int lamport_index, int server_index,
+                                    int email_index, int email_server_index,
+                                    char *user_name);
 
-struct UPDATE_MSG create_update_msg(char type, int time_stamp, int lamport_index,
-                                    int server_index, int email_index, int email_server_index,
-                                    char* user_name);
-
-
-void write_index_matrix(char *file_name, int index_matrix[5][5]);
-void read_index_matrix(char *file_name, int mat[5][5]);
+void write_index_matrix(int server_index, int index_matrix[5][5]);
+void read_index_matrix(int server_index, int mat[5][5]);
 
 void write_email(char *file_name, struct EMAIL_MSG email_msg);
 struct EMAIL_MSG read_email(char *file_name);
@@ -63,6 +70,8 @@ void read_all_email(char *dir, struct USER_NODE *user_list_head);
 
 void write_update_msg(int server_index);
 void read_update_msg(int server_index);
+
+void delete_email_on_disk(int server_index, char *file_name);
 
 void testWrite();
 
@@ -77,7 +86,6 @@ int main(int argc, char *argv[]) {
 
   static char mess[MAX_MESSLEN];
   char target_groups[MAX_MEMBERS][MAX_GROUP_NAME];
-  char members[MAX_MEMBERS][MAX_GROUP_NAME];
   char sender[MAX_GROUP_NAME];
   int ret;
   int service_type;
@@ -92,9 +100,6 @@ int main(int argc, char *argv[]) {
   int group_members[5];
 
   /* Variables for partition */
-  vs_set_info vssets[MAX_VSSETS];
-  unsigned int my_vsset_index;
-  int num_vs_sets;
 
   struct USER_NODE *user_list_head =
     (struct USER_NODE *)malloc(sizeof(struct USER_NODE));
@@ -161,7 +166,7 @@ int main(int argc, char *argv[]) {
   memset(index_matrix, 0, sizeof(int) * 25);
 
   /* read data file from disk*/
-  read_index_matrix(User, index_matrix);
+  read_index_matrix(atoi(server_index), index_matrix);
   read_all_email(dir_emails, user_list_head);
   read_update_msg(atoi(server_index));
 
@@ -223,8 +228,6 @@ int main(int argc, char *argv[]) {
         struct CLIENT_SEND_EMAIL_MSG send_email_msg;
         memcpy(&send_email_msg, mess, sizeof(send_email_msg));
 
-        // TODO: write email/updates into disks
-
         /* Update all index value that the servers in same group */
         email_counter += 1;
         time_stamp += 1;
@@ -240,16 +243,12 @@ int main(int argc, char *argv[]) {
 
         add_new_email(email_msg, user_list_head);
 
-        char file_name[FILENAME_LEN];
-        sprintf(file_name, "s%d_%s_s%d_%d", atoi(server_index), email_msg.email.to,
-                email_msg.server_index, email_msg.email_index);
-
         // read_email(file_name);
 
         /*create update message, mutlicast to group*/
-        struct UPDATE_MSG update_msg = create_update_msg(
-                                                         NEW_EMAIL, time_stamp, *lamport_index, atoi(server_index),
-                                                         email_counter, atoi(server_index), send_email_msg.receiver_name);
+        struct UPDATE_MSG update_msg =
+          create_update_msg(NEW_EMAIL, time_stamp, *lamport_index, atoi(server_index),
+                            email_counter, atoi(server_index), send_email_msg.receiver_name);
 
         struct NEW_EMAIL_MSG new_email_msg;
 
@@ -260,9 +259,14 @@ int main(int argc, char *argv[]) {
         add_update_msg(update_msg);
 
         /* write data to disk */
-        write_index_matrix(User, index_matrix);
-        write_email(file_name, email_msg);
+        write_index_matrix(atoi(server_index), index_matrix);
         write_update_msg(atoi(server_index));
+
+        char file_name[FILENAME_LEN];
+        sprintf(file_name, "./data/s%d/emails/%s_s%d_%d", atoi(server_index),
+                email_msg.email.to, email_msg.server_index,
+                email_msg.email_index);
+        write_email(file_name, email_msg);
 
         print_user_list(user_list_head);
 
@@ -344,17 +348,26 @@ int main(int argc, char *argv[]) {
         increment_index_matrix(index_matrix, group_members, atoi(server_index));
 
         /*create update message, and multicast to group*/
-        struct UPDATE_MSG update_read_msg = create_update_msg(
-                                                              READ_EMAIL, time_stamp, *lamport_index, atoi(server_index),
-                                                              read_request.email_index, read_request.server_index,
-                                                              read_request.user_name);
+        struct UPDATE_MSG update_read_msg =
+          create_update_msg(READ_EMAIL, time_stamp, *lamport_index, atoi(server_index),
+                            read_request.email_index, read_request.server_index,
+                            read_request.user_name);
 
         /* Append the update message to the list */
         add_update_msg(update_read_msg);
 
         /* Write date to disk */
-        write_index_matrix(User, index_matrix);
+        write_index_matrix(atoi(server_index), index_matrix);
         write_update_msg(atoi(server_index));
+
+        /*
+          TODO: rewrite email
+        char file_name[FILENAME_LEN];
+        sprintf(file_name, "./data/s%d/emails/%s_s%d_%d", atoi(server_index),
+                email_msg.email.to, email_msg.server_index,
+                email_msg.email_index);
+        write_email(file_name, email_msg);
+        */
 
         ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
                            sizeof(update_read_msg), (char *)&update_read_msg);
@@ -384,7 +397,7 @@ int main(int argc, char *argv[]) {
 
         time_stamp += 1;
         increment_index_matrix(index_matrix, group_members, atoi(server_index));
-        write_index_matrix(User, index_matrix);
+        write_index_matrix(atoi(server_index), index_matrix);
 
         /* create update message, and multicast to group*/
         struct UPDATE_MSG update_delete_msg =
@@ -395,8 +408,14 @@ int main(int argc, char *argv[]) {
         add_update_msg(update_delete_msg);
 
         /* Write date to disk */
-        write_index_matrix(User, index_matrix);
+        write_index_matrix(atoi(server_index), index_matrix);
         write_update_msg(atoi(server_index));
+
+        char file_name[FILENAME_LEN];
+        sprintf(file_name, "./data/s%d/emails/%s_s%d_%d", atoi(server_index),
+                delete_request.user_name, delete_request.server_index,
+                delete_request.email_index);
+        delete_email_on_disk(atoi(server_index), file_name);
 
         ret =
           SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
@@ -444,91 +463,110 @@ int main(int argc, char *argv[]) {
                            update_msg.update_index, index_matrix)) {
         add_update_msg(update_msg);
       }
+      if (check_time_index(atoi(server_index), update_msg.server_index,
+                           update_msg.update_index, index_matrix)) {
 
-      if (update_msg.type == EXCHANGE_INDEX_MATRIX) {
-        /* Form exchange message to update matrix */
-        struct EXCHANGE_INDEX_MATRIX_MSG exchange_index_msg;
-        memcpy(&exchange_index_msg, mess, sizeof(exchange_index_msg));
+        if (update_msg.type == EXCHANGE_INDEX_MATRIX) {
+          /* Form exchange message to update matrix */
+          struct EXCHANGE_INDEX_MATRIX_MSG exchange_index_msg;
+          memcpy(&exchange_index_msg, mess, sizeof(exchange_index_msg));
 
-        int local_server_index = atoi(server_index);
-        int incoming_server_index = exchange_index_msg.update_msg.server_index;
-        int incoming_matrix[5][5];
+          int local_server_index = atoi(server_index);
+          int incoming_server_index =
+            exchange_index_msg.update_msg.server_index;
+          int incoming_matrix[5][5];
 
-        memcpy(incoming_matrix, exchange_index_msg.index_matrix,
-               sizeof(incoming_matrix));
+          memcpy(incoming_matrix, exchange_index_msg.index_matrix,
+                 sizeof(incoming_matrix));
 
-        /* Update other field of the matrix */
-        for (int i = 0; i < 5; i++) {
-          if (i == local_server_index) {
-            continue;
-          }
-          for (int j = 0; j < 5; j++) {
-            index_matrix[i][j] = MAX(index_matrix[i][j], incoming_matrix[i][j]);
-          }
-        }
-
-        /* Write index_matrix to disk */
-        write_index_matrix(User, index_matrix);
-
-        /* check the update_msg that needs to be sent out*/
-        struct UPDATE_MSG_NODE *update_msg_head =
-          (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
-
-        for (int i = 0; i < 5; i++) {
-          if (index_matrix[local_server_index][i] >
-              incoming_matrix[incoming_server_index][i]) {
-
-            // send update message at [local_server_index][i]
-            for (int j = incoming_matrix[incoming_server_index][i] + 1;
-                 j <= index_matrix[local_server_index][i]; j++) {
-              add_update_msg_lst(update_msg_head, i, j);
+          /* Update other field of the matrix */
+          for (int i = 0; i < 5; i++) {
+            if (i == local_server_index) {
+              continue;
+            }
+            for (int j = 0; j < 5; j++) {
+              index_matrix[i][j] =
+                MAX(index_matrix[i][j], incoming_matrix[i][j]);
             }
           }
-        }
 
-        /*send out the update_msg*/
-        while (update_msg_head->next) {
+          /* check the update_msg that needs to be sent out*/
+          struct UPDATE_MSG_NODE *update_msg_head =
+            (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
+          update_msg_head->next = NULL;
 
-          // Sort the update messages by timestamp and send them one by one
-          struct UPDATE_MSG_NODE *update_msg_next = update_msg_head->next;
-          // multicast this update message to all other servers
-          if (update_msg_next->update_msg.type == NEW_EMAIL) {
+          // Check each column of current server_index and incoming server index
+          for (int j = 0; j < 5; j++) {
+            if (index_matrix[local_server_index][j] >
+                incoming_matrix[incoming_server_index][j]) {
 
-            struct EMAIL_MSG_NODE *email_msg_node = find_email(
-                                                               user_list_head, update_msg_next->update_msg.user_name,
-                                                               update_msg_next->update_msg.email_index,
-                                                               update_msg_next->update_msg.email_server_index);
+              // send update message at [local_server_index][j]
+              /**
+                 for (int k = incoming_matrix[incoming_server_index][j] + 1;
+                 k <= index_matrix[local_server_index][j]; k++) {
+              */
+              index_matrix[incoming_server_index][j] =
+                incoming_matrix[incoming_server_index][j];
 
-            struct NEW_EMAIL_MSG new_email_msg;
-            new_email_msg.update_msg = update_msg_next->update_msg;
-            new_email_msg.email = email_msg_node->email_msg.email;
-
-            // multicast this update message to all other servers
-            ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
-                               sizeof(new_email_msg), (char *)&new_email_msg);
-          } else {
-
-            struct UPDATE_MSG update_msg = update_msg_next->update_msg;
-
-            ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
-                               sizeof(update_msg), (char *)&update_msg);
+              while (index_matrix[incoming_server_index][j] <
+                     index_matrix[local_server_index][j]) {
+                printf("Did prepared update list.\n");
+                index_matrix[incoming_server_index][j] += 1;
+                add_update_msg_lst(update_msg_head, j,
+                                   index_matrix[incoming_server_index][j]);
+              }
+            }
           }
 
-          update_msg_head->next = update_msg_next->next;
-          free(update_msg_next);
-          update_msg_next = NULL;
-        }
+          write_index_matrix(atoi(server_index), index_matrix);
 
-        free(update_msg_head);
-        update_msg_head = NULL;
+          /*send out the update_msg*/
+          while (update_msg_head->next) {
+            printf("Entered the while loop.\n");
 
-      } else if (update_msg.type == NEW_EMAIL) {
-        struct NEW_EMAIL_MSG new_email_msg;
-        memcpy(&new_email_msg, mess, sizeof(new_email_msg));
+            // Sort the update messages by timestamp and send them one by one
+            struct UPDATE_MSG_NODE *update_msg_next = update_msg_head->next;
+            printf("update_msg_next-> update_msg type: %c.\n",
+                   update_msg_next->update_msg.type);
 
-        /* check time_stamp & update_index */
-        if (check_time_index(atoi(server_index), update_msg.server_index,
-                             update_msg.update_index, index_matrix)) {
+            // multicast this update message to all other servers
+            if (update_msg_next->update_msg.type == NEW_EMAIL) {
+
+              struct EMAIL_MSG_NODE *email_msg_node
+                = find_email(user_list_head, update_msg_next->update_msg.user_name,
+                             update_msg_next->update_msg.email_index,
+                             update_msg_next->update_msg.email_server_index);
+
+              struct NEW_EMAIL_MSG new_email_msg;
+              new_email_msg.update_msg = update_msg_next->update_msg;
+              new_email_msg.email = email_msg_node->email_msg.email;
+
+              // multicast this update message to all other servers
+              ret = SP_multicast(Mbox, AGREED_MESS, sender, 0,
+                                 sizeof(new_email_msg), (char *)&new_email_msg);
+            } else {
+
+              struct UPDATE_MSG update_msg = update_msg_next->update_msg;
+
+              ret = SP_multicast(Mbox, AGREED_MESS, sender, 0,
+                                 sizeof(update_msg), (char *)&update_msg);
+            }
+
+            index_matrix[incoming_server_index][update_msg_next->update_msg.server_index] += 1;
+            update_msg_head->next = update_msg_next->next;
+
+            free(update_msg_next);
+            update_msg_next = NULL;
+          }
+
+          free(update_msg_head);
+          update_msg_head = NULL;
+
+        } else if (update_msg.type == NEW_EMAIL) {
+          struct NEW_EMAIL_MSG new_email_msg;
+          memcpy(&new_email_msg, mess, sizeof(new_email_msg));
+
+          /* check time_stamp & update_index */
 
           struct EMAIL_MSG email_msg;
           email_msg.server_index = new_email_msg.update_msg.email_server_index;
@@ -541,15 +579,18 @@ int main(int argc, char *argv[]) {
                               update_msg.server_index, update_msg.update_index);
 
           /* Write data to disk */
-          write_index_matrix(User, index_matrix);
+          write_index_matrix(atoi(server_index), index_matrix);
           write_update_msg(atoi(server_index));
 
+          char file_name[FILENAME_LEN];
+          sprintf(file_name, "./data/s%d/emails/%s_s%d_%d", atoi(server_index),
+                  email_msg.email.to, email_msg.server_index,
+                  email_msg.email_index);
+          write_email(file_name, email_msg);
+
           print_user_list(user_list_head);
-        }
-      } else if (update_msg.type == READ_EMAIL) {
-        /* check */
-        if (check_time_index(atoi(server_index), update_msg.server_index,
-                             update_msg.update_index, index_matrix)) {
+        } else if (update_msg.type == READ_EMAIL) {
+          /* check */
 
           /**
              printf("username: %s, email_index: %d, email server index: %d.\n",
@@ -562,16 +603,12 @@ int main(int argc, char *argv[]) {
                               update_msg.server_index, update_msg.update_index);
 
           /* Write data to disk */
-          write_index_matrix(User, index_matrix);
+          write_index_matrix(atoi(server_index), index_matrix);
           write_update_msg(atoi(server_index));
 
           print_user_list(user_list_head);
-        }
 
-      } else if (update_msg.type == DELETE_EMAIL) {
-
-        if (check_time_index(atoi(server_index), update_msg.server_index,
-                             update_msg.update_index, index_matrix)) {
+        } else if (update_msg.type == DELETE_EMAIL) {
 
           delete_email(update_msg.user_name, update_msg.email_index,
                        update_msg.email_server_index, user_list_head);
@@ -579,12 +616,19 @@ int main(int argc, char *argv[]) {
                               update_msg.server_index, update_msg.update_index);
 
           /* Write data to disk */
-          write_index_matrix(User, index_matrix);
+          write_index_matrix(atoi(server_index), index_matrix);
           write_update_msg(atoi(server_index));
+
+          char file_name[FILENAME_LEN];
+          sprintf(file_name, "./data/s%d/emails/%s_s%d_%d", atoi(server_index),
+                  update_msg.user_name, update_msg.email_server_index,
+                  update_msg.email_index);
+          delete_email_on_disk(atoi(server_index), file_name);
         }
       }
 
-      // print_update_msg_list();
+      printf("Before delete:\n");
+      print_update_msg_list();
       //      print_index_matrix(index_matrix);
 
       /* discard unused update messages*/
@@ -596,12 +640,15 @@ int main(int argc, char *argv[]) {
         // printf("delete msg\n");
         delete_update_msg(j, aru);
       }
+      /* write update message into disk after delete*/
+      write_update_msg(atoi(server_index));
 
-      /**
-         printf("index_matrix after update from %d\n", update_msg.server_index);
-         print_index_matrix(index_matrix);
-      */
+      printf("After delete:\n");
+      print_update_msg_list();
+      printf("index_matrix after update from %d\n", update_msg.server_index);
+      print_index_matrix(index_matrix);
     }
+    // print_update_msg_list();
 
     /* Actions when there is membership change */
     if (Is_membership_mess(service_type)) {
@@ -612,11 +659,13 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
 
-      printf("Current membership: ");
-      for (int i = 0; i < 5; i++) {
-        printf("%d ", group_members[i]);
-      }
-      printf("\n");
+      /**
+         printf("Current membership: ");
+         for (int i = 0; i < 5; i++) {
+         printf("%d ", group_members[i]);
+         }
+         printf("\n");
+      */
       if (Is_reg_memb_mess(service_type)) {
         // Leave the group if it is a private group and current server is
         // the only member
@@ -667,14 +716,6 @@ int main(int argc, char *argv[]) {
                }
                printf("\n");
             */
-
-            if (num_vs_sets < 0) {
-              printf("BUG: membership message has more then %d vs sets. "
-                     "Recompile with larger MAX_VSSETS\n",
-                     MAX_VSSETS);
-              SP_error(num_vs_sets);
-              exit(1);
-            }
 
             struct EXCHANGE_INDEX_MATRIX_MSG exchange_msg;
             exchange_msg.update_msg.source.type = SERVER;
@@ -741,15 +782,17 @@ void print_update_msg_list() {
     printf("list no: %d\n", i);
     struct UPDATE_MSG_NODE *temp_msg = update_msg_head[i];
     while (temp_msg) {
-      printf("user name: %s ", temp_msg->update_msg.user_name);
-      printf("type: %c ", temp_msg->update_msg.type);
-      printf("time stamp: %d ", temp_msg->update_msg.time_stamp);
-      printf("update index: %d ", temp_msg->update_msg.update_index);
-      printf("server index: %d ", temp_msg->update_msg.server_index);
-      printf("email index: %d ", temp_msg->update_msg.email_index);
-      printf("email server index: %d ",
-             temp_msg->update_msg.email_server_index);
-      printf("\n");
+      if (temp_msg->update_msg.update_index > 0) {
+        printf("user name: %s ", temp_msg->update_msg.user_name);
+        printf("type: %c ", temp_msg->update_msg.type);
+        printf("time stamp: %d ", temp_msg->update_msg.time_stamp);
+        printf("update index: %d ", temp_msg->update_msg.update_index);
+        printf("server index: %d ", temp_msg->update_msg.server_index);
+        printf("email index: %d ", temp_msg->update_msg.email_index);
+        printf("email server index: %d ",
+               temp_msg->update_msg.email_server_index);
+        printf("\n");
+      }
       temp_msg = temp_msg->next;
     }
   }
@@ -814,7 +857,9 @@ struct EMAIL_MSG_NODE *find_user_email_head(char *user_name,
   return user_email_head;
 }
 
-struct EMAIL_MSG_NODE *find_user_email_node(struct EMAIL_MSG_NODE *user_email_head, int email_index, int email_server_index) {
+struct EMAIL_MSG_NODE *
+find_user_email_node(struct EMAIL_MSG_NODE *user_email_head, int email_index,
+                     int email_server_index) {
 
   struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
   while (user_email_node) {
@@ -975,11 +1020,13 @@ void add_update_msg_lst(struct UPDATE_MSG_NODE *head, int server_index,
       }
 
       // deep copy
-      struct UPDATE_MSG_NODE *new_node = 
+      struct UPDATE_MSG_NODE *new_node =
         (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
-      memcpy(&new_node->update_msg, &node->update_msg, sizeof(node->update_msg));
+      memcpy(&new_node->update_msg, &node->update_msg,
+             sizeof(node->update_msg));
+      printf("Update msg type %c, timestamp %d\n", new_node->update_msg.type,
+             new_node->update_msg.time_stamp);
       // new_node->update_msg = node->update_msg;
-
 
       new_node->next = pre->next;
       pre->next = new_node;
@@ -1004,22 +1051,29 @@ struct UPDATE_MSG create_update_msg(char type, int time_stamp,
   return update_msg;
 }
 
-void write_index_matrix(char *file_name, int mat[5][5]) {
+void write_index_matrix(int server_index, int mat[5][5]) {
 
-  FILE* fw;
+  char file_name[FILENAME_LEN];
+  sprintf(file_name, "./data/s%d/mat", server_index);
+
+  FILE *fw;
   if ((fw = fopen(file_name, "w")) == NULL) {
     perror("fopen error");
     // exit(0);
   }
 
-  printf("write index matrix\n");
-  for (int i = 0; i < 5; i ++)
-    fprintf(fw, "%d %d %d %d %d\n", mat[i][0], mat[i][1], mat[i][2], mat[i][3], mat[i][4]);
+  // printf("write index matrix\n");
+  for (int i = 0; i < 5; i++)
+    fprintf(fw, "%d %d %d %d %d\n", mat[i][0], mat[i][1], mat[i][2], mat[i][3],
+            mat[i][4]);
 
   fclose(fw);
 }
 
-void read_index_matrix(char *file_name, int mat[5][5]) {
+void read_index_matrix(int server_index, int mat[5][5]) {
+
+  char file_name[FILENAME_LEN];
+  sprintf(file_name, "./data/s%d/mat", server_index);
 
   if(access(file_name, F_OK ) == -1)
     return;
@@ -1077,8 +1131,10 @@ void read_all_email(char *dir,  struct USER_NODE *user_list_head) {
       // puts (ep->d_name);
 
       char *file_name = ep->d_name;
-      printf("%s\n", file_name);
-      struct EMAIL_MSG email_msg = read_email(file_name);
+      char file_dir[FILENAME_LEN];
+      sprintf(file_dir, "%s/%s", dir, file_name);
+      printf("%s\n", file_dir);
+      struct EMAIL_MSG email_msg = read_email(file_dir);
 
       add_new_email(email_msg, user_list_head);
 
@@ -1090,8 +1146,9 @@ void read_all_email(char *dir,  struct USER_NODE *user_list_head) {
 
 struct EMAIL_MSG read_email(char *file_name) {
 
+  /*
   if(access(file_name, F_OK ) == -1)
-    return;
+  return;*/
 
   struct EMAIL_MSG email_msg;
   FILE *fr;
@@ -1110,7 +1167,6 @@ struct EMAIL_MSG read_email(char *file_name) {
     printf("content: %s\n", email.content);
   */
 
-
   fclose(fr);
 
   return email_msg;
@@ -1118,11 +1174,11 @@ struct EMAIL_MSG read_email(char *file_name) {
 
 void write_update_msg(int server_index) {
 
-  for (int i = 0; i < 5; i ++) {
+  for (int i = 0; i < 5; i++) {
     // printf("list no: %d\n", i);
     FILE *fw;
     char file_name[FILENAME_LEN];
-    sprintf(file_name, "s%d_msg_s%d", server_index, i);
+    sprintf(file_name, "./data/s%d/msg_s%d", server_index, i);
 
     if ((fw = fopen(file_name, "w")) == NULL) {
       perror("fopen error");
@@ -1141,10 +1197,10 @@ void write_update_msg(int server_index) {
 
 void read_update_msg(int server_index) {
 
-  for (int i = 0; i < 5; i ++) {
+  for (int i = 0; i < 5; i++) {
     FILE *fr;
     char file_name[FILENAME_LEN];
-    sprintf(file_name, "s%d_msg_s%d", server_index, i);
+    sprintf(file_name, "./data/s%d/msg_s%d", server_index, i);
 
     if(access(file_name, F_OK ) == -1)
       continue;
@@ -1163,16 +1219,28 @@ void read_update_msg(int server_index) {
   }
 }
 
+void delete_email_on_disk(int server_index, char *file_name) {
+
+  int ret;
+  ret = remove(file_name);
+
+  if(ret == 0) {
+    printf("File deleted successfully");
+  }
+  else {
+    printf("Error: unable to delete the file");
+  }
+}
+
 void testWrite(){
   int num;
   FILE *fptr;
   fptr = fopen("test","w");
 
-  if(fptr == NULL)
-    {
-      printf("Error!");
-      exit(1);
-    }
+  if(fptr == NULL) {
+    printf("Error!");
+    exit(1);
+  }
 
   printf("Enter num: ");
   scanf("%d",&num);
