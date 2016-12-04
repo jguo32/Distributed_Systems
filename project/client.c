@@ -68,11 +68,11 @@ int main(int argc, char *argv[]) {
 
 static void user_command() {
   char command[130];
-  char mess[MAX_MESSLEN];
+  // char mess[MAX_MESSLEN];
   //char group[80];
-  char groups[10][MAX_GROUP_NAME];
-  int num_groups;
-  unsigned int mess_len;
+  // char groups[10][MAX_GROUP_NAME];
+  // int num_groups;
+  // unsigned int mess_len;
   int ret;
   int i;
 
