@@ -369,7 +369,7 @@ static void read_message() {
       if (email_list[i].email.read == 1)
         read = "read";
 
-      printf("%-5d %-10s %-12s %s ",
+      printf("%-5d %-10s %-12s %-10s ",
              i+1, read,
              email_list[i].email.from,
              email_list[i].email.subject);
