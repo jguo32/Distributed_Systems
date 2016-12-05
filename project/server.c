@@ -161,8 +161,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < 5; i++) {
     group_members[i] = 0;
   }
-  // group_members[3] = 1;
-  // group_members[4] = 1;
+  group_members[atoi(server_index)] = 1;
 
   /*
   char group_check[1];
@@ -256,7 +255,6 @@ int main(int argc, char *argv[]) {
         /* Update all index value that the servers in same group */
         email_counter += 1;
         time_stamp += 1;
-	*lamport_index += 1;
 
         /* Increment the corresponding position of the index matrix */
         increment_index_matrix(index_matrix, group_members, atoi(server_index));
@@ -285,11 +283,6 @@ int main(int argc, char *argv[]) {
         /* Append the update message to the list */
         add_update_msg(update_msg);
 
-        printf("Real time stamp: %d\n", time_stamp);
-        printf(
-            "Update msg time stamp: %d, %d\n", update_msg.time_stamp,
-            update_msg_head[atoi(server_index)]->next->update_msg.time_stamp);
-
         /* write data to disk */
         write_index_matrix(atoi(server_index), index_matrix, time_stamp);
         write_update_msg(atoi(server_index));
@@ -310,6 +303,7 @@ int main(int argc, char *argv[]) {
           printf("\nBye.\n");
           exit(0);
         }
+
         /* Process list email request */
       } else if (client_msg.type == EMAIL_LIST_REQ) {
         struct CLIENT_EMAIL_LIST_REQ_MSG list_req;
@@ -500,13 +494,22 @@ int main(int argc, char *argv[]) {
         /* Update local Lamport timestamp first */
         time_stamp = MAX(time_stamp, update_msg.time_stamp);
       }
+
       if (update_msg.type == EXCHANGE_INDEX_MATRIX) {
-	printf("Exchange msg!\n");
+        printf("Exchange msg!\n");
       }
-      printf("Received update msg: type: %c,  server_index: %d, update_index: %d, time_stamp: %d.\n", update_msg.type, update_msg.server_index, update_msg.update_index, update_msg.time_stamp);
+      printf("index matrix before update:\n");
+      print_index_matrix(index_matrix);
+
+      printf("Received update msg: type: %c,  server_index: %d, update_index: "
+             "%d, time_stamp: %d.\n",
+             update_msg.type, update_msg.server_index, update_msg.update_index,
+             update_msg.time_stamp);
 
       if (check_time_index(atoi(server_index), update_msg.server_index,
-                           update_msg.update_index, index_matrix) || update_msg.type == EXCHANGE_INDEX_MATRIX) {
+                           update_msg.update_index, index_matrix) ||
+          update_msg.type == EXCHANGE_INDEX_MATRIX) {
+	printf("Starting update...\n");
 
         if (update_msg.type == EXCHANGE_INDEX_MATRIX) {
           /* Form exchange message to update matrix */
@@ -524,7 +527,7 @@ int main(int argc, char *argv[]) {
           printf("incoming matrix\n");
           print_index_matrix(incoming_matrix);
 
-	  /*
+          /*
           for (int i = 0; i < 5; i++) {
             if (i == local_server_index) {
               continue;
@@ -534,7 +537,7 @@ int main(int argc, char *argv[]) {
                   MAX(index_matrix[i][j], incoming_matrix[i][j]);
             }
           }
-	  */
+          */
 
           /* Update other field of the matrix */
           for (int i = 0; i < 5; i++) {
@@ -643,9 +646,6 @@ int main(int argc, char *argv[]) {
               }
             }
 
-            // index_matrix[incoming_server_index][update_msg_next->update_msg
-            //                                        .server_index] += 1;
-
             index_matrix[incoming_server_index][update_msg_next->update_msg
                                                     .server_index] =
                 MAX(index_matrix[incoming_server_index]
@@ -738,7 +738,6 @@ int main(int argc, char *argv[]) {
       }
 
       print_update_msg_list();
-      //      print_index_matrix(index_matrix);
 
       /* discard unused update messages*/
       for (int j = 0; j < 5; j++) {
@@ -766,13 +765,33 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
 
-      /**
-         printf("Current membership: ");
-         for (int i = 0; i < 5; i++) {
-         printf("%d ", group_members[i]);
-         }
-         printf("\n");
-      */
+      if (strcmp(sender, GLOBAL_GROUP_NAME) == 0) {
+        // Zero out the group member array
+        for (int i = 0; i < 5; i++) {
+          group_members[i] = 0;
+        }
+
+        // Fill the membership array by current members
+        for (int j = 0; j < num_groups; j++) {
+          printf("Member: %s\n", target_groups[j]);
+          char member_name[20];
+          char *token;
+          int existing_server_index;
+
+          memcpy(member_name, &target_groups[j][1],
+                 strlen(target_groups[j]) - 1);
+          token = strtok(member_name, "#");
+          existing_server_index = token[strlen(token) - 1] - '0';
+          group_members[existing_server_index] = 1;
+        }
+      }
+
+      printf("Current membership: ");
+      for (int i = 0; i < 5; i++) {
+        printf("%d ", group_members[i]);
+      }
+      printf("\n");
+
       if (Is_reg_memb_mess(service_type)) {
         // Leave the group if it is a private group and current server is
         // the only member
@@ -788,22 +807,13 @@ int main(int argc, char *argv[]) {
           // Update index matrix and update list only if membership of
           // global group changes
           if (strcmp(sender, GLOBAL_GROUP_NAME) == 0) {
-            /**
-               printf("Received REGULAR membership for group %s with %d members,
-               "
-               "where I am member %d:\n",
-               sender, num_groups, mess_type);
-
-               for (int i = 0; i < num_groups; i++)
-               printf("\t%s\n", &target_groups[i][0]);
-            */
-
             // Zero out the group member array
             for (int i = 0; i < 5; i++) {
               group_members[i] = 0;
             }
 
             // Fill the membership array by current members
+            /*
             for (int j = 0; j < num_groups; j++) {
               printf("Member: %s\n", target_groups[j]);
               char member_name[20];
@@ -816,6 +826,7 @@ int main(int argc, char *argv[]) {
               existing_server_index = token[strlen(token) - 1] - '0';
               group_members[existing_server_index] = 1;
             }
+            */
 
             /**
                printf("Current membership: ");
@@ -830,8 +841,8 @@ int main(int argc, char *argv[]) {
             exchange_msg.update_msg.server_index = atoi(server_index);
             exchange_msg.update_msg.type = EXCHANGE_INDEX_MATRIX;
 
-	    // exchange_msg.update_msg.update_index = -1;
-	    // exchange_msg.update_msg.time_stamp = -1;
+            // exchange_msg.update_msg.update_index = -1;
+            // exchange_msg.update_msg.time_stamp = -1;
             memcpy(exchange_msg.index_matrix, index_matrix,
                    sizeof(index_matrix));
 
@@ -1153,7 +1164,8 @@ void add_update_msg_lst(struct UPDATE_MSG_NODE *head, int server_index,
           (struct UPDATE_MSG_NODE *)malloc(sizeof(struct UPDATE_MSG_NODE));
       memcpy(&new_node->update_msg, &node->update_msg,
              sizeof(node->update_msg));
-      // printf("Update msg type %c, timestamp %d\n", new_node->update_msg.type,
+      // printf("Update msg type %c, timestamp %d\n",
+      // new_node->update_msg.type,
       //      new_node->update_msg.time_stamp);
 
       new_node->next = pre->next;
