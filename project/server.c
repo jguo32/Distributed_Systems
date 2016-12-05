@@ -159,11 +159,34 @@ int main(int argc, char *argv[]) {
 
   /* Initialize group members, all servers are in the same group at beginning */
   for (int i = 0; i < 5; i++) {
-    group_members[i] = 1;
+    group_members[i] = 0;
   }
-
   // group_members[3] = 1;
   // group_members[4] = 1;
+
+  /*
+  char group_check[1];
+  ret =
+    SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
+                 1, group_check);
+
+  ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
+             &mess_type, &endian_mismatch, sizeof(mess), mess);
+
+  for (int j = 0; j < num_groups; j++) {
+    printf("Member: %s\n", target_groups[j]);
+    char member_name[20];
+    char *token;
+    int existing_server_index;
+
+    memcpy(member_name, &target_groups[j][1],
+           strlen(target_groups[j]) - 1);
+    token = strtok(member_name, "#");
+    existing_server_index = token[strlen(token) - 1] - '0';
+    group_members[existing_server_index] = 1;
+  }
+  */
+
 
   /* Initialize index matrix */
   memset(index_matrix, 0, sizeof(int) * 25);
@@ -494,6 +517,9 @@ int main(int argc, char *argv[]) {
 
           memcpy(incoming_matrix, exchange_index_msg.index_matrix,
                  sizeof(incoming_matrix));
+
+          printf("incoming matrix\n");
+          print_index_matrix(incoming_matrix);
 
           /**
           printf("incoming matrix\n");
