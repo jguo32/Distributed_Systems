@@ -163,29 +163,6 @@ int main(int argc, char *argv[]) {
   }
   group_members[atoi(server_index)] = 1;
 
-  /*
-  char group_check[1];
-  ret =
-    SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
-                 1, group_check);
-
-  ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
-             &mess_type, &endian_mismatch, sizeof(mess), mess);
-
-  for (int j = 0; j < num_groups; j++) {
-    printf("Member: %s\n", target_groups[j]);
-    char member_name[20];
-    char *token;
-    int existing_server_index;
-
-    memcpy(member_name, &target_groups[j][1],
-           strlen(target_groups[j]) - 1);
-    token = strtok(member_name, "#");
-    existing_server_index = token[strlen(token) - 1] - '0';
-    group_members[existing_server_index] = 1;
-  }
-  */
-
   /* Initialize index matrix */
   memset(index_matrix, 0, sizeof(int) * 25);
 
@@ -509,7 +486,7 @@ int main(int argc, char *argv[]) {
       if (check_time_index(atoi(server_index), update_msg.server_index,
                            update_msg.update_index, index_matrix) ||
           update_msg.type == EXCHANGE_INDEX_MATRIX) {
-	printf("Starting update...\n");
+        printf("Starting update...\n");
 
         if (update_msg.type == EXCHANGE_INDEX_MATRIX) {
           /* Form exchange message to update matrix */
@@ -691,13 +668,15 @@ int main(int argc, char *argv[]) {
         } else if (update_msg.type == READ_EMAIL) {
           /* check */
 
-          /**
-             printf("username: %s, email_index: %d, email server index: %d.\n",
-             update_msg.user_name, update_msg.email_index,
-             update_msg.email_server_index);
-          */
-          read_new_email(update_msg.user_name, update_msg.email_index,
-                         update_msg.email_server_index, user_list_head);
+          printf("username: %s, email_index: %d, email server index: %d.\n",
+                 update_msg.user_name, update_msg.email_index,
+                 update_msg.email_server_index);
+
+          struct SERVER_EMAIL_RES_MSG read_response;
+
+          read_response =
+              read_new_email(update_msg.user_name, update_msg.email_index,
+                             update_msg.email_server_index, user_list_head);
           update_index_matrix(index_matrix, group_members,
                               update_msg.server_index, update_msg.update_index);
 
@@ -710,12 +689,13 @@ int main(int argc, char *argv[]) {
                   update_msg.user_name, update_msg.email_server_index,
                   update_msg.email_index);
 
-          struct EMAIL_MSG_NODE *email_msg_node =
-              find_email(user_list_head, update_msg.user_name,
-                         update_msg.email_index, update_msg.email_server_index);
+          if (read_response.exist == 1) {
+            struct EMAIL_MSG_NODE *email_msg_node = find_email(
+                user_list_head, update_msg.user_name, update_msg.email_index,
+                update_msg.email_server_index);
 
-          write_email(file_name, email_msg_node->email_msg);
-
+            write_email(file_name, email_msg_node->email_msg);
+          }
           print_user_list(user_list_head);
 
         } else if (update_msg.type == DELETE_EMAIL) {
@@ -768,6 +748,9 @@ int main(int argc, char *argv[]) {
       if (strcmp(sender, GLOBAL_GROUP_NAME) == 0) {
         // Zero out the group member array
         for (int i = 0; i < 5; i++) {
+          if (i == atoi(server_index)) {
+            continue;
+          }
           group_members[i] = 0;
         }
 
@@ -802,31 +785,10 @@ int main(int argc, char *argv[]) {
               strncmp("_client", sender, strlen("_client")) == 0) {
             SP_leave(Mbox, sender);
           }
+
         } else if (Is_caused_network_mess(service_type)) {
 
-          // Update index matrix and update list only if membership of
-          // global group changes
           if (strcmp(sender, GLOBAL_GROUP_NAME) == 0) {
-            // Zero out the group member array
-            for (int i = 0; i < 5; i++) {
-              group_members[i] = 0;
-            }
-
-            // Fill the membership array by current members
-            /*
-            for (int j = 0; j < num_groups; j++) {
-              printf("Member: %s\n", target_groups[j]);
-              char member_name[20];
-              char *token;
-              int existing_server_index;
-
-              memcpy(member_name, &target_groups[j][1],
-                     strlen(target_groups[j]) - 1);
-              token = strtok(member_name, "#");
-              existing_server_index = token[strlen(token) - 1] - '0';
-              group_members[existing_server_index] = 1;
-            }
-            */
 
             /**
                printf("Current membership: ");
@@ -1078,9 +1040,9 @@ struct SERVER_EMAIL_RES_MSG read_new_email(char *user_name, int email_index,
   } else {
     struct EMAIL_MSG_NODE *user_email_node = user_email_head->next;
     while (user_email_node) {
-      // printf("server_index: %d\n",
-      // user_email_node->email_msg.server_index);
-      // printf("email_index: %d\n",  user_email_node->email_msg.email_index);
+      printf("server_index: %d\n", user_email_node->email_msg.server_index);
+      printf("email_index: %d\n", user_email_node->email_msg.email_index);
+
       if (user_email_node->email_msg.server_index == read_server_index &&
           user_email_node->email_msg.email_index == email_index) {
         printf("read - found email \n");
@@ -1091,6 +1053,7 @@ struct SERVER_EMAIL_RES_MSG read_new_email(char *user_name, int email_index,
       }
       user_email_node = user_email_node->next;
     }
+    printf("finished read while loop.\n");
   }
   return read_response;
 }
