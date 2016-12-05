@@ -127,11 +127,12 @@ static void user_command() {
 
     if (status == CONNECT) {
       ret = SP_leave(Mbox, private_group_name);
-      printf("disconnect with server %d\n", cur_server_index);
+      printf("disconnect with server #%d\n", cur_server_index);
       if (ret < 0) {
         SP_error(ret);
         Bye();
       }
+      status = LOGIN;
     }
 
     printf("connecting to server #%d\n", index);
@@ -150,34 +151,6 @@ static void user_command() {
       SP_error(ret);
       Bye();
     }
-
-    struct CLIENT_MEMBERSHIP_MSG membership_msg;
-    membership_msg.msg.source.type = CLIENT;
-    membership_msg.msg.type = MEMBERSHIP_REQ;
-
-    ret = SP_multicast(Mbox, AGREED_MESS, private_group_name, 0,
-                       sizeof(membership_msg), (char *)&membership_msg);
-
-    /*
-    char public_group[80];
-    strcpy(public_group, "public_group_");
-    strcat(public_group, server_index);
-
-    struct CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
-    private_group_req_msg.msg.source.type = CLIENT;
-    private_group_req_msg.msg.type = PRIVATE_GROUP_REQ;
-
-    ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0,
-                       sizeof(private_group_req_msg),
-                       (char *)&private_group_req_msg);
-
-    if (ret < 0) {
-      SP_error(ret);
-      Bye();
-    }
-    email_num = -1;
-    cur_server_index = last_connect_index;
-    */
 
     break;
   }
@@ -471,10 +444,10 @@ static void read_message() {
   } else if (msg.type == MEMBERSHIP_RES) {
     struct SERVER_MEMBERSHIP_RES_MSG membership_res_msg;
     memcpy(&membership_res_msg, mess, sizeof(membership_res_msg));
-    printf("\n current member in group: ");
+    printf("\ncurrent member in group: ");
     for (int i = 0; i < 5; i++) {
       if (membership_res_msg.group_members[i] == 1) {
-        printf("%d ", i);
+        printf("#%d ", i);
       }
     }
     printf("\n");
@@ -513,10 +486,10 @@ static void read_message() {
       cur_server_index = last_connect_index;
 
     } else {
-      printf("\nserver %d can't be connected right now, you can try: ", last_connect_index);
+      printf("\nserver #%d can't be connected right now, you can try: ", last_connect_index);
       for (int i = 0; i < 5; i++) {
         if (check_member_res_msg.group_members[i] == 1) {
-          printf("%d ", i);
+          printf("#%d ", i);
         }
       }
       printf("\n");

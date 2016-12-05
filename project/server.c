@@ -499,10 +499,11 @@ int main(int argc, char *argv[]) {
         }
 
       } else if (client_msg.type == MEMBER_CHECK_REQ) {
+
         printf("asdf\n");
         for (int i = 0; i < 5; i ++) {
           if (group_members[i] == 1) {
-
+            printf("%d", i);
             if (i == atoi(server_index)) {
               printf("sent\n");
               struct SERVER_CHECK_MEMBER_RES_MSG check_member_res_msg;
@@ -807,6 +808,9 @@ int main(int argc, char *argv[]) {
       print_index_matrix(index_matrix);
     }
 
+    for (int i = 0; i < num_groups; i++)
+      printf("\t%s\n", &target_groups[i][0]);
+
     /* Actions when there is membership change */
     if (Is_membership_mess(service_type)) {
       ret = SP_get_memb_info(mess, service_type, &memb_info);
@@ -837,12 +841,6 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      printf("Current membership: ");
-      for (int i = 0; i < 5; i++) {
-        printf("%d ", group_members[i]);
-      }
-      printf("\n");
-
       if (Is_reg_memb_mess(service_type)) {
         // Leave the group if it is a private group and current server is
         // the only member
@@ -858,10 +856,6 @@ int main(int argc, char *argv[]) {
           // Update index matrix and update list only if membership of
           // global group changes
           if (strcmp(sender, GLOBAL_GROUP_NAME) == 0) {
-            // Zero out the group member array
-            for (int i = 0; i < 5; i++) {
-              group_members[i] = 0;
-            }
 
             // Fill the membership array by current members
             /*
