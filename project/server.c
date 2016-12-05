@@ -161,30 +161,31 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < 5; i++) {
     group_members[i] = 0;
   }
+  group_members[atoi(server_index)] = 1;
   // group_members[3] = 1;
   // group_members[4] = 1;
 
   /*
-  char group_check[1];
-  ret =
+    char group_check[1];
+    ret =
     SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
-                 1, group_check);
+    1, group_check);
 
-  ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
-             &mess_type, &endian_mismatch, sizeof(mess), mess);
+    ret = SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
+    &mess_type, &endian_mismatch, sizeof(mess), mess);
 
-  for (int j = 0; j < num_groups; j++) {
+    for (int j = 0; j < num_groups; j++) {
     printf("Member: %s\n", target_groups[j]);
     char member_name[20];
     char *token;
     int existing_server_index;
 
     memcpy(member_name, &target_groups[j][1],
-           strlen(target_groups[j]) - 1);
+    strlen(target_groups[j]) - 1);
     token = strtok(member_name, "#");
     existing_server_index = token[strlen(token) - 1] - '0';
     group_members[existing_server_index] = 1;
-  }
+    }
   */
 
 
@@ -209,6 +210,7 @@ int main(int argc, char *argv[]) {
     ret =
       SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
                  &mess_type, &endian_mismatch, sizeof(mess), mess);
+
     if (ret < 0) {
       SP_error(ret);
       printf("\nBye.\n");
@@ -218,6 +220,7 @@ int main(int argc, char *argv[]) {
     struct SOURCE src;
     memcpy(&src, mess, sizeof(src));
     if (src.type == CLIENT) {
+
       struct CLIENT_MSG client_msg;
       memcpy(&client_msg, mess, sizeof(client_msg));
 
@@ -272,6 +275,18 @@ int main(int argc, char *argv[]) {
 
         // read_email(file_name);
 
+        /* notify the user the email info has been changed */
+          struct SERVER_INFO_CHANGE_MSG info_change_msg;
+        info_change_msg.msg.type = INFO_CHANGE;
+
+        ret = SP_multicast(Mbox, AGREED_MESS, send_email_msg.email.to, 0,
+                           sizeof(info_change_msg), (char *)&info_change_msg);
+        if (ret < 0) {
+          SP_error(ret);
+          printf("\nBye.\n");
+          exit(0);
+        }
+
         /*create update message, mutlicast to group*/
         struct UPDATE_MSG update_msg =
           create_update_msg(NEW_EMAIL, time_stamp, *lamport_index, atoi(server_index),
@@ -287,8 +302,8 @@ int main(int argc, char *argv[]) {
 
         printf("Real time stamp: %d\n", time_stamp);
         printf(
-            "Update msg time stamp: %d, %d\n", update_msg.time_stamp,
-            update_msg_head[atoi(server_index)]->next->update_msg.time_stamp);
+               "Update msg time stamp: %d, %d\n", update_msg.time_stamp,
+               update_msg_head[atoi(server_index)]->next->update_msg.time_stamp);
 
         /* write data to disk */
         write_index_matrix(atoi(server_index), index_matrix, time_stamp);
@@ -341,8 +356,8 @@ int main(int argc, char *argv[]) {
             user_email_node = user_email_node->next;
           }
         }
-	// print_user_list(user_list_head);
-	// print_email_list(*user_email_head);
+        // print_user_list(user_list_head);
+        // print_email_list(*user_email_head);
 
         /* Form & send the response message */
         struct SERVER_EMAIL_LIST_RES_MSG list_response;
@@ -436,6 +451,18 @@ int main(int argc, char *argv[]) {
         increment_index_matrix(index_matrix, group_members, atoi(server_index));
         write_index_matrix(atoi(server_index), index_matrix, time_stamp);
 
+        /* notify the user the email info has been changed */
+        struct SERVER_INFO_CHANGE_MSG info_change_msg;
+        info_change_msg.msg.type = INFO_CHANGE;
+
+        ret = SP_multicast(Mbox, AGREED_MESS, delete_request.user_name, 0,
+                           sizeof(info_change_msg), (char *)&info_change_msg);
+        if (ret < 0) {
+          SP_error(ret);
+          printf("\nBye.\n");
+          exit(0);
+        }
+
         /* create update message, and multicast to group*/
         struct UPDATE_MSG update_delete_msg =
           create_update_msg(DELETE_EMAIL, time_stamp, *lamport_index, atoi(server_index),
@@ -479,7 +506,30 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
 
-      } else {
+      } else if (client_msg.type == MEMBER_CHECK_REQ) {
+        printf("asdf\n");
+        for (int i = 0; i < 5; i ++) {
+          if (group_members[i] == 1) {
+
+            if (i == atoi(server_index)) {
+              printf("sent\n");
+              struct SERVER_CHECK_MEMBER_RES_MSG check_member_res_msg;
+              check_member_res_msg.msg.type = MEMBER_CHECK_RES;
+              memcpy(check_member_res_msg.group_members, group_members, sizeof(int)*5);
+
+              ret = SP_multicast(Mbox, AGREED_MESS, sender, 0,
+                                 sizeof(check_member_res_msg),
+                                 (char *)&check_member_res_msg);
+              if (ret < 0) {
+                SP_error(ret);
+                printf("\nBye.\n");
+                exit(0);
+              }
+            }
+
+            break;
+          }
+        }
       }
 
       // print_update_msg_list();
@@ -522,8 +572,8 @@ int main(int argc, char *argv[]) {
           print_index_matrix(incoming_matrix);
 
           /**
-          printf("incoming matrix\n");
-          print_index_matrix(incoming_matrix);
+             printf("incoming matrix\n");
+             print_index_matrix(incoming_matrix);
           */
           /* Update other field of the matrix */
           for (int i = 0; i < 5; i++) {
@@ -531,8 +581,13 @@ int main(int argc, char *argv[]) {
               continue;
             }
             for (int j = 0; j < 5; j++) {
-              index_matrix[i][j] =
-                MAX(index_matrix[i][j], incoming_matrix[i][j]);
+              if (group_members[i] == 1) {
+                index_matrix[i][j] =
+                  MAX(index_matrix[i][j], incoming_matrix[incoming_server_index][j]);
+              } else {
+                index_matrix[i][j] =
+                  MAX(index_matrix[i][j], incoming_matrix[i][j]);
+              }
             }
           }
 
@@ -719,6 +774,8 @@ int main(int argc, char *argv[]) {
                   update_msg.user_name, update_msg.email_server_index,
                   update_msg.email_index);
           delete_email_on_disk(atoi(server_index), file_name);
+
+        } else {
         }
       }
 
