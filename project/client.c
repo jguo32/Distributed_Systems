@@ -27,6 +27,8 @@ struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
 int email_num = -1;
 int cur_server_index = -1;
 
+int last_connect_index = -1;
+
 int main(int argc, char *argv[]) {
   char *client_index;
   int ret;
@@ -86,14 +88,27 @@ static void user_command() {
 
   switch (command[0]) {
   case 'u': {
+
+    if (status != INIT)
+      ret = SP_leave(Mbox, user_name);
+
     ret = sscanf(&command[2], "%s", user_name);
     if (ret < 1) {
       printf("Invalid user name.\n");
       break;
     }
     printf("User logged in as: %s\n", user_name);
+
+    ret = SP_join(Mbox, user_name);
+
     status = LOGIN;
     cur_server_index = -1;
+
+    if (ret < 0) {
+      SP_error(ret);
+      Bye();
+    }
+
     break;
   }
 
@@ -112,32 +127,31 @@ static void user_command() {
 
     if (status == CONNECT) {
       ret = SP_leave(Mbox, private_group_name);
+      printf("disconnect with server #%d\n", cur_server_index);
       if (ret < 0) {
         SP_error(ret);
         Bye();
       }
+      status = LOGIN;
     }
 
-    // Join the public group of the designated server
-    char public_group[80];
-    strcpy(public_group, "public_group_");
-    strcat(public_group, server_index);
+    printf("connecting to server #%d\n", index);
+    last_connect_index = index;
 
-    struct CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
-    private_group_req_msg.msg.source.type = CLIENT;
-    private_group_req_msg.msg.type = PRIVATE_GROUP_REQ;
+    struct CLIENT_CHECK_MEMBER_REQ_MSG check_member_req_msg;
+    check_member_req_msg.msg.type = MEMBER_CHECK_REQ;
 
-    ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0,
-                       sizeof(private_group_req_msg),
-                       (char *)&private_group_req_msg);
+    // check_member_req_msg.msg.type = MEMBERSHIP_REQ;
+    check_member_req_msg.msg.source.type = CLIENT;
+    ret = SP_multicast(Mbox, AGREED_MESS, "GLOBAL_SERVER_GROUP", 0,
+                       sizeof(check_member_req_msg),
+                       (char *)&check_member_req_msg);
 
     if (ret < 0) {
       SP_error(ret);
       Bye();
     }
-    email_num = -1;
-    cur_server_index = index;
-    printf("connecting to server #%d\n", index);
+
     break;
   }
 
@@ -227,7 +241,7 @@ static void user_command() {
     ret = sscanf(&command[2], "%s", email_no);
     int no = atoi(email_no) - 1;
     if (no < 0 || no >= email_num) {
-      printf("invalid email number");
+      printf("invalid email number\n");
       break;
     }
 
@@ -245,10 +259,8 @@ static void user_command() {
       SP_error(ret);
       Bye();
     }
-
+    break;
   }
-
-  break;
 
   case 'd': {
     if (email_num < 0) {
@@ -259,7 +271,7 @@ static void user_command() {
     ret = sscanf(&command[2], "%s", email_no);
     int no = atoi(email_no) - 1;
     if (no < 0 || no >= email_num) {
-      printf("invalid email number");
+      printf("invalid email number\n");
       break;
     }
 
@@ -277,9 +289,8 @@ static void user_command() {
       SP_error(ret);
       Bye();
     }
+    break;
   }
-
-  break;
 
   case 'v': {
     struct CLIENT_MEMBERSHIP_MSG membership_msg;
@@ -293,8 +304,8 @@ static void user_command() {
       SP_error(ret);
       Bye();
     }
-
-  } break;
+    break;
+  }
 
   case 'q':
     Bye();
@@ -327,6 +338,30 @@ static void read_message() {
     SP_error(ret);
     Bye();
   }
+
+  if (Is_reg_memb_mess(service_type)) {
+    // Leave the group when server is down
+    if (Is_caused_leave_mess(service_type) ||
+        Is_caused_disconnect_mess(service_type) ||
+        Is_caused_network_mess(service_type)) {
+
+      /*TODO check server or client */
+      if (strcmp(user_name, sender) == 0)
+        return;
+
+      SP_leave(Mbox, sender);
+      status = LOGIN;
+      email_num = -1;
+      cur_server_index = -1;
+
+      printf("disconnect from server, please reconnect!\n");
+      printf("\nUser> ");
+      fflush(stdout);
+      return;
+
+    }
+  }
+
   struct SERVER_MSG msg;
   memcpy(&msg, mess, sizeof(msg));
 
@@ -404,23 +439,65 @@ static void read_message() {
     else
       printf("\nsuccessfully removed!\n");
 
-    email_num -= 1;
-
     printf("\nUser> ");
     fflush(stdout);
   } else if (msg.type == MEMBERSHIP_RES) {
     struct SERVER_MEMBERSHIP_RES_MSG membership_res_msg;
     memcpy(&membership_res_msg, mess, sizeof(membership_res_msg));
-    printf("\n current member in group: ");
+    printf("\ncurrent member in group: ");
     for (int i = 0; i < 5; i++) {
       if (membership_res_msg.group_members[i] == 1) {
-        printf("%d ", i);
+        printf("#%d ", i);
       }
     }
     printf("\n");
     printf("\nUser> ");
     fflush(stdout);
+  } else if (msg.type == INFO_CHANGE) {
+    email_num = -1;
+    //printf("\nemail num(come) %d\n", email_num);
+    //printf("\nUser> ");
+    //fflush(stdout);
+  } else if (msg.type == MEMBER_CHECK_RES) {
+
+    struct SERVER_CHECK_MEMBER_RES_MSG check_member_res_msg;
+    memcpy(&check_member_res_msg, mess, sizeof(check_member_res_msg));
+
+    if (check_member_res_msg.group_members[last_connect_index] == 1) {
+
+      // Join the public group of the designated server
+      char public_group[80];
+      strcpy(public_group, "public_group_");
+      strcat(public_group, server_index);
+
+      struct CLIENT_PRIVATE_GROUP_REQ_MSG private_group_req_msg;
+      private_group_req_msg.msg.source.type = CLIENT;
+      private_group_req_msg.msg.type = PRIVATE_GROUP_REQ;
+
+      ret = SP_multicast(Mbox, AGREED_MESS, public_group, 0,
+                         sizeof(private_group_req_msg),
+                         (char *)&private_group_req_msg);
+
+      if (ret < 0) {
+        SP_error(ret);
+        Bye();
+      }
+      email_num = -1;
+      cur_server_index = last_connect_index;
+
+    } else {
+      printf("\nserver #%d can't be connected right now, you can try: ", last_connect_index);
+      for (int i = 0; i < 5; i++) {
+        if (check_member_res_msg.group_members[i] == 1) {
+          printf("#%d ", i);
+        }
+      }
+      printf("\n");
+      printf("\nUser> ");
+      fflush(stdout);
+    }
   }
+
 }
 
 static void print_menu() {

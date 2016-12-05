@@ -182,8 +182,9 @@ int main(int argc, char *argv[]) {
   membership_info memb_info;
   while (1) {
     ret =
-        SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
-                   &mess_type, &endian_mismatch, sizeof(mess), mess);
+      SP_receive(Mbox, &service_type, sender, 100, &num_groups, target_groups,
+                 &mess_type, &endian_mismatch, sizeof(mess), mess);
+
     if (ret < 0) {
       SP_error(ret);
       printf("\nBye.\n");
@@ -193,6 +194,7 @@ int main(int argc, char *argv[]) {
     struct SOURCE src;
     memcpy(&src, mess, sizeof(src));
     if (src.type == CLIENT) {
+
       struct CLIENT_MSG client_msg;
       memcpy(&client_msg, mess, sizeof(client_msg));
 
@@ -246,6 +248,18 @@ int main(int argc, char *argv[]) {
         add_new_email(email_msg, user_list_head);
 
         // read_email(file_name);
+
+        /* notify the user the email info has been changed */
+          struct SERVER_INFO_CHANGE_MSG info_change_msg;
+        info_change_msg.msg.type = INFO_CHANGE;
+
+        ret = SP_multicast(Mbox, AGREED_MESS, send_email_msg.email.to, 0,
+                           sizeof(info_change_msg), (char *)&info_change_msg);
+        if (ret < 0) {
+          SP_error(ret);
+          printf("\nBye.\n");
+          exit(0);
+        }
 
         /*create update message, mutlicast to group*/
         struct UPDATE_MSG update_msg = create_update_msg(
@@ -406,6 +420,18 @@ int main(int argc, char *argv[]) {
         increment_index_matrix(index_matrix, group_members, atoi(server_index));
         write_index_matrix(atoi(server_index), index_matrix, time_stamp);
 
+        /* notify the user the email info has been changed */
+        struct SERVER_INFO_CHANGE_MSG info_change_msg;
+        info_change_msg.msg.type = INFO_CHANGE;
+
+        ret = SP_multicast(Mbox, AGREED_MESS, delete_request.user_name, 0,
+                           sizeof(info_change_msg), (char *)&info_change_msg);
+        if (ret < 0) {
+          SP_error(ret);
+          printf("\nBye.\n");
+          exit(0);
+        }
+
         /* create update message, and multicast to group*/
         struct UPDATE_MSG update_delete_msg = create_update_msg(
             DELETE_EMAIL, time_stamp, *lamport_index, atoi(server_index),
@@ -449,7 +475,31 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
 
-      } else {
+      } else if (client_msg.type == MEMBER_CHECK_REQ) {
+
+        printf("asdf\n");
+        for (int i = 0; i < 5; i ++) {
+          if (group_members[i] == 1) {
+            printf("%d", i);
+            if (i == atoi(server_index)) {
+              printf("sent\n");
+              struct SERVER_CHECK_MEMBER_RES_MSG check_member_res_msg;
+              check_member_res_msg.msg.type = MEMBER_CHECK_RES;
+              memcpy(check_member_res_msg.group_members, group_members, sizeof(int)*5);
+
+              ret = SP_multicast(Mbox, AGREED_MESS, sender, 0,
+                                 sizeof(check_member_res_msg),
+                                 (char *)&check_member_res_msg);
+              if (ret < 0) {
+                SP_error(ret);
+                printf("\nBye.\n");
+                exit(0);
+              }
+            }
+
+            break;
+          }
+        }
       }
 
       // print_update_msg_list();
@@ -714,6 +764,8 @@ int main(int argc, char *argv[]) {
                   update_msg.user_name, update_msg.email_server_index,
                   update_msg.email_index);
           delete_email_on_disk(atoi(server_index), file_name);
+
+        } else {
         }
       }
 
@@ -735,6 +787,9 @@ int main(int argc, char *argv[]) {
       printf("index_matrix after update from %d\n", update_msg.server_index);
       print_index_matrix(index_matrix);
     }
+
+    for (int i = 0; i < num_groups; i++)
+      printf("\t%s\n", &target_groups[i][0]);
 
     /* Actions when there is membership change */
     if (Is_membership_mess(service_type)) {
@@ -769,12 +824,6 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      printf("Current membership: ");
-      for (int i = 0; i < 5; i++) {
-        printf("%d ", group_members[i]);
-      }
-      printf("\n");
-
       if (Is_reg_memb_mess(service_type)) {
         // Leave the group if it is a private group and current server is
         // the only member
@@ -789,7 +838,6 @@ int main(int argc, char *argv[]) {
         } else if (Is_caused_network_mess(service_type)) {
 
           if (strcmp(sender, GLOBAL_GROUP_NAME) == 0) {
-
             /**
                printf("Current membership: ");
                for (int i = 0; i < 5; i++) {

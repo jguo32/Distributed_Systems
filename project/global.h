@@ -35,11 +35,14 @@
 #define DELETE_EMAIL_RES      'i'
 #define MEMBERSHIP_REQ        'j'
 #define MEMBERSHIP_RES        'k'
+#define INFO_CHANGE           'l'
+#define MEMBER_CHECK_REQ      'm'
+#define MEMBER_CHECK_RES      'n'
 
-#define EXCHANGE_INDEX_MATRIX 'l'
-#define NEW_EMAIL             'm'
-#define READ_EMAIL            'n'
-#define DELETE_EMAIL          'o'
+#define EXCHANGE_INDEX_MATRIX 'o'
+#define NEW_EMAIL             'p'
+#define READ_EMAIL            'q'
+#define DELETE_EMAIL          'r'
 
 /* email struct */
 struct EMAIL {
@@ -131,9 +134,17 @@ struct CLIENT_MEMBERSHIP_MSG {
   struct CLIENT_MSG msg;
 };
 
+struct CLIENT_CHECK_MEMBER_REQ_MSG {
+  struct CLIENT_MSG msg;
+};
+
 /* msg from server to client */
 struct SERVER_MSG {
   char type;
+};
+
+struct SERVER_INFO_CHANGE_MSG {
+  struct SERVER_MSG msg;
 };
 
 struct SERVER_PRIVATE_GROUP_RES_MSG {
@@ -159,6 +170,11 @@ struct SERVER_DELETE_RES_MSG {
 };
 
 struct SERVER_MEMBERSHIP_RES_MSG {
+  struct SERVER_MSG msg;
+  int group_members[5];
+};
+
+struct SERVER_CHECK_MEMBER_RES_MSG {
   struct SERVER_MSG msg;
   int group_members[5];
 };
