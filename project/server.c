@@ -159,11 +159,11 @@ int main(int argc, char *argv[]) {
 
   /* Initialize group members, all servers are in the same group at beginning */
   for (int i = 0; i < 5; i++) {
-    group_members[i] = 0;
+    group_members[i] = 1;
   }
 
-  group_members[3] = 1;
-  group_members[4] = 1;
+  // group_members[3] = 1;
+  // group_members[4] = 1;
 
   /* Initialize index matrix */
   memset(index_matrix, 0, sizeof(int) * 25);
@@ -468,6 +468,8 @@ int main(int argc, char *argv[]) {
       struct UPDATE_MSG update_msg;
       memcpy(&update_msg, mess, sizeof(update_msg));
 
+      printf("~~~~~~~~~~~~~~~~\n");
+
       /* Append the update message to the list if it is not EXCHANGE */
       if (update_msg.type != EXCHANGE_INDEX_MATRIX &&
           check_time_index(atoi(server_index), update_msg.server_index,
@@ -606,7 +608,6 @@ int main(int argc, char *argv[]) {
               MAX(index_matrix[ incoming_server_index ][ update_msg_next->update_msg.server_index ],
                   update_msg_next->update_msg.update_index );
 
-            index_matrix[incoming_server_index][update_msg_next->update_msg.server_index] += 1;
             update_msg_head->next = update_msg_next->next;
 
             free(update_msg_next);
@@ -987,6 +988,7 @@ void add_new_email(struct EMAIL_MSG new_email_msg,
 
     // When the incoming email has the same timestamp with some of existing
     // email, put the one with larger server_index to the front
+
     while (current->next &&
            current->next->email_msg.time_stamp > current_email_time) {
 
@@ -1137,6 +1139,8 @@ struct UPDATE_MSG create_update_msg(char type, int time_stamp,
 
 void write_index_matrix(int server_index, int mat[5][5], int time_stamp) {
 
+  return;
+
   char file_name[FILENAME_LEN];
   sprintf(file_name, "./data/s%d/mat", server_index);
 
@@ -1194,6 +1198,9 @@ void read_index_matrix(int server_index, int mat[5][5], int *time_stamp) {
 }
 
 void write_email(char *file_name, struct EMAIL_MSG email_msg) {
+
+  return;
+
   FILE* fw;
   if ((fw = fopen(file_name, "w")) == NULL) {
     perror("fopen error");
@@ -1266,6 +1273,7 @@ struct EMAIL_MSG read_email(char *file_name) {
 
 void write_update_msg(int server_index) {
 
+  return;
   for (int i = 0; i < 5; i++) {
     // printf("list no: %d\n", i);
     FILE *fw;
@@ -1313,6 +1321,7 @@ void read_update_msg(int server_index) {
 
 void delete_email_on_disk(int server_index, char *file_name) {
 
+  return;
   int ret;
   ret = remove(file_name);
 

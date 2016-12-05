@@ -431,7 +431,7 @@ static void print_menu() {
   printf("\n");
 
   printf("\tu <name>: login with a user name.\n");
-  printf("\tc <server>: connect to a specific server(1 - 5).\n");
+  printf("\tc <server>: connect to a specific server(0 - 4).\n");
   printf("\tl: list the headers of received mails.\n");
   printf("\tm: mail a message to a user.\n");
   printf("\td <mail_index>: delete a mail message.\n");
