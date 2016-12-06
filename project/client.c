@@ -113,10 +113,16 @@ static void user_command() {
   }
 
   case 'c': {
+
+    if (status != LOGIN && status != CONNECT) {
+      printf("please log in with user name\n");
+      break;
+    }
+
     ret = sscanf(&command[2], "%s", server_index);
     int index = atoi(server_index);
     if (ret < 1 || !(index <= 4 && index >= 0)) {
-      printf("Invalid server index.\n");
+      printf("invalid server index.\n");
       break;
     }
 
@@ -157,7 +163,7 @@ static void user_command() {
 
   case 'm': {
     if (status != CONNECT) {
-      printf("you should connect server first!\n");
+      printf("you should connect with a server\n");
       break;
     }
 
@@ -216,6 +222,12 @@ static void user_command() {
   }
 
   case 'l': {
+
+    if (status != CONNECT) {
+      printf("you should connect with a server\n");
+      break;
+    }
+
     struct CLIENT_EMAIL_LIST_REQ_MSG email_list_req_msg;
     email_list_req_msg.msg.source.type = CLIENT;
     email_list_req_msg.msg.type = EMAIL_LIST_REQ;
@@ -232,6 +244,11 @@ static void user_command() {
   }
 
   case 'r': {
+
+    if (status != CONNECT) {
+      printf("you should connect with a server\n");
+      break;
+    }
 
     if (email_num < 0) {
       printf("you should request email list first.\n");
@@ -263,6 +280,12 @@ static void user_command() {
   }
 
   case 'd': {
+
+    if (status != CONNECT) {
+      printf("you should connect with a server\n");
+      break;
+    }
+
     if (email_num < 0) {
       printf("you should request email list first.\n");
       break;

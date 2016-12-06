@@ -477,12 +477,9 @@ int main(int argc, char *argv[]) {
 
       } else if (client_msg.type == MEMBER_CHECK_REQ) {
 
-        printf("asdf\n");
         for (int i = 0; i < 5; i ++) {
           if (group_members[i] == 1) {
-            printf("%d", i);
             if (i == atoi(server_index)) {
-              printf("sent\n");
               struct SERVER_CHECK_MEMBER_RES_MSG check_member_res_msg;
               check_member_res_msg.msg.type = MEMBER_CHECK_RES;
               memcpy(check_member_res_msg.group_members, group_members, sizeof(int)*5);
