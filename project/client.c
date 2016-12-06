@@ -92,6 +92,7 @@ static void user_command() {
     if (status != INIT)
       ret = SP_leave(Mbox, user_name);
 
+    status = LOGIN;
     ret = sscanf(&command[2], "%s", user_name);
     if (ret < 1) {
       printf("Invalid user name.\n");
@@ -101,7 +102,6 @@ static void user_command() {
 
     ret = SP_join(Mbox, user_name);
 
-    status = LOGIN;
     cur_server_index = -1;
 
     if (ret < 0) {
@@ -362,9 +362,14 @@ static void read_message() {
     Bye();
   }
 
-  if (Is_reg_memb_mess(service_type)) {
+  if (Is_membership_mess(service_type)) {
+    /*
+    printf("member: ");
+    printf(sender);
+    printf("\n");
+    */
     // Leave the group when server is down
-    if (Is_caused_leave_mess(service_type) ||
+    if ( /*Is_caused_leave_mess(service_type) || */
         Is_caused_disconnect_mess(service_type) ||
         Is_caused_network_mess(service_type)) {
 
@@ -380,9 +385,8 @@ static void read_message() {
       printf("disconnect from server, please reconnect!\n");
       printf("\nUser> ");
       fflush(stdout);
-      return;
-
     }
+    return;
   }
 
   struct SERVER_MSG msg;

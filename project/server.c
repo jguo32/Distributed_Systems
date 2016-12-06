@@ -194,7 +194,7 @@ int main(int argc, char *argv[]) {
     struct SOURCE src;
     memcpy(&src, mess, sizeof(src));
     if (src.type == CLIENT) {
-
+  
       struct CLIENT_MSG client_msg;
       memcpy(&client_msg, mess, sizeof(client_msg));
 
@@ -790,6 +790,7 @@ int main(int argc, char *argv[]) {
 
     /* Actions when there is membership change */
     if (Is_membership_mess(service_type)) {
+
       ret = SP_get_memb_info(mess, service_type, &memb_info);
       if (ret < 0) {
         printf("BUG: membership message does not have valid body\n");
@@ -832,7 +833,7 @@ int main(int argc, char *argv[]) {
             SP_leave(Mbox, sender);
           }
 
-        } else if (Is_caused_network_mess(service_type)) {
+        } else if (Is_caused_network_mess(service_type) || Is_caused_join_mess(service_type)) {
 
           if (strcmp(sender, GLOBAL_GROUP_NAME) == 0) {
             /**
@@ -1202,8 +1203,6 @@ struct UPDATE_MSG create_update_msg(char type, int time_stamp,
 
 void write_index_matrix(int server_index, int mat[5][5], int time_stamp) {
 
-  return;
-
   char file_name[FILENAME_LEN];
   sprintf(file_name, "./data/s%d/mat", server_index);
 
@@ -1261,8 +1260,6 @@ void read_index_matrix(int server_index, int mat[5][5], int *time_stamp) {
 }
 
 void write_email(char *file_name, struct EMAIL_MSG email_msg) {
-
-  return;
 
   FILE *fw;
   if ((fw = fopen(file_name, "w")) == NULL) {
@@ -1333,7 +1330,7 @@ struct EMAIL_MSG read_email(char *file_name) {
 
 void write_update_msg(int server_index) {
 
-  return;
+
   for (int i = 0; i < 5; i++) {
     // printf("list no: %d\n", i);
     FILE *fw;
