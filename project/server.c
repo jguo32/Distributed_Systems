@@ -194,7 +194,7 @@ int main(int argc, char *argv[]) {
     struct SOURCE src;
     memcpy(&src, mess, sizeof(src));
     if (src.type == CLIENT) {
-  
+
       struct CLIENT_MSG client_msg;
       memcpy(&client_msg, mess, sizeof(client_msg));
 
@@ -363,6 +363,7 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
 
+        printf("exist: %d\n", read_response.exist);
         if (read_response.exist != -1) {
 
           time_stamp += 1;
@@ -604,12 +605,15 @@ int main(int argc, char *argv[]) {
               update_start_point =
                   incoming_matrix[incoming_server_index][j] + 1;
 
+              printf("send to server $%d \n", incoming_server_index);
               while (update_start_point <=
                      index_matrix[local_server_index][j]) {
+                printf("%d", update_start_point);
                 // index_matrix[incoming_server_index][j] += 1;
                 add_update_msg_lst(update_msg_head, j, update_start_point);
                 update_start_point += 1;
               }
+              printf("\n");
             }
           }
 
@@ -672,6 +676,7 @@ int main(int argc, char *argv[]) {
               }
             }
 
+            printf("%d", update_msg_next->update_msg.update_index);
             index_matrix[incoming_server_index][update_msg_next->update_msg
                                                     .server_index] =
                 MAX(index_matrix[incoming_server_index]
@@ -683,6 +688,7 @@ int main(int argc, char *argv[]) {
             free(update_msg_next);
             update_msg_next = NULL;
           }
+          printf("\n");
 
           free(update_msg_head);
           update_msg_head = NULL;
