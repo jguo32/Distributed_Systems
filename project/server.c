@@ -363,41 +363,43 @@ int main(int argc, char *argv[]) {
           exit(0);
         }
 
-        time_stamp += 1;
-        increment_index_matrix(index_matrix, group_members, atoi(server_index));
+        if (read_response.exist != -1) {
 
-        /*create update message, and multicast to group*/
-        struct UPDATE_MSG update_read_msg = create_update_msg(
-            READ_EMAIL, time_stamp, *lamport_index, atoi(server_index),
-            read_request.email_index, read_request.server_index,
-            read_request.user_name);
+          time_stamp += 1;
+          increment_index_matrix(index_matrix, group_members, atoi(server_index));
 
-        /* Append the update message to the list */
-        add_update_msg(update_read_msg);
+          /*create update message, and multicast to group*/
+          struct UPDATE_MSG update_read_msg = create_update_msg(
+                                                                READ_EMAIL, time_stamp, *lamport_index, atoi(server_index),
+                                                                read_request.email_index, read_request.server_index,
+                                                                read_request.user_name);
 
-        /* Write date to disk */
-        write_index_matrix(atoi(server_index), index_matrix, time_stamp);
-        write_update_msg(atoi(server_index));
+          /* Append the update message to the list */
+          add_update_msg(update_read_msg);
 
-        char file_name[FILENAME_LEN];
-        sprintf(file_name, "./data/s%d/emails/%s_s%d_%d", atoi(server_index),
-                read_request.user_name, read_request.server_index,
-                read_request.email_index);
+          /* Write date to disk */
+          write_index_matrix(atoi(server_index), index_matrix, time_stamp);
+          write_update_msg(atoi(server_index));
 
-        struct EMAIL_MSG_NODE *email_msg_node =
+          char file_name[FILENAME_LEN];
+          sprintf(file_name, "./data/s%d/emails/%s_s%d_%d", atoi(server_index),
+                  read_request.user_name, read_request.server_index,
+                  read_request.email_index);
+
+          struct EMAIL_MSG_NODE *email_msg_node =
             find_email(user_list_head, read_request.user_name,
                        read_request.email_index, read_request.server_index);
 
-        write_email(file_name, email_msg_node->email_msg);
+          write_email(file_name, email_msg_node->email_msg);
 
-        ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
-                           sizeof(update_read_msg), (char *)&update_read_msg);
-        if (ret < 0) {
-          SP_error(ret);
-          printf("\nBye.\n");
-          exit(0);
+          ret = SP_multicast(Mbox, AGREED_MESS, GLOBAL_GROUP_NAME, 0,
+                             sizeof(update_read_msg), (char *)&update_read_msg);
+          if (ret < 0) {
+            SP_error(ret);
+            printf("\nBye.\n");
+            exit(0);
+          }
         }
-
       } else if (client_msg.type == DELETE_EMAIL_REQ) {
         struct CLIENT_DELETE_EMAIL_MSG delete_request;
         memcpy(&delete_request, mess, sizeof(delete_request));
@@ -1092,8 +1094,12 @@ struct SERVER_EMAIL_RES_MSG read_new_email(char *user_name, int email_index,
       if (user_email_node->email_msg.server_index == read_server_index &&
           user_email_node->email_msg.email_index == email_index) {
         printf("read - found email \n");
+        if (user_email_node->email_msg.email.read == 1) {
+          read_response.exist = -1;
+        } else {
+          read_response.exist = 1;
+        }
         user_email_node->email_msg.email.read = 1;
-        read_response.exist = 1;
         read_response.email = user_email_node->email_msg.email;
         break;
       }
