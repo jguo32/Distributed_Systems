@@ -64,6 +64,7 @@ struct EMAIL_MSG {
 struct EMAIL_MSG_NODE {
   struct EMAIL_MSG email_msg;
   struct EMAIL_MSG_NODE *next;
+  int show;
 };
 
 struct USER_NODE {
@@ -188,4 +189,5 @@ struct EXCHANGE_INDEX_MATRIX_MSG {
 struct NEW_EMAIL_MSG {
   struct UPDATE_MSG update_msg;
   struct EMAIL email;
+  int deleted;
 };
