@@ -1378,7 +1378,6 @@ void read_update_msg(int server_index) {
 
 void delete_email_on_disk(int server_index, char *file_name) {
 
-  return;
   int ret;
   ret = remove(file_name);
 
