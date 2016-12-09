@@ -26,7 +26,6 @@ char private_group_name[GROUPNAME_LEN];
 struct EMAIL_MSG email_list[EMAIL_LIST_MAX_LEN];
 int email_num = -1;
 int cur_server_index = -1;
-
 int last_connect_index = -1;
 
 int main(int argc, char *argv[]) {
@@ -91,18 +90,28 @@ static void user_command() {
 
     if (status != INIT)
       ret = SP_leave(Mbox, user_name);
+    else
+      status = LOGIN;
 
-    status = LOGIN;
-    ret = sscanf(&command[2], "%s", user_name);
-    if (ret < 1) {
+    char name[USERNAME_LEN];
+    ret = sscanf(&command[2], "%s", name);
+    if (ret < 1 || strlen(name) == 0) {
       printf("Invalid user name.\n");
       break;
     }
+
+    if (strcmp(name, user_name) == 0)
+      break;
+
+    memcpy(user_name, name, sizeof(name));
+
     printf("User logged in as: %s\n", user_name);
 
     ret = SP_join(Mbox, user_name);
 
-    cur_server_index = -1;
+    email_num = -1;
+
+    // cur_server_index = -1;
 
     if (ret < 0) {
       SP_error(ret);
@@ -143,6 +152,7 @@ static void user_command() {
 
     printf("connecting to server #%d\n", index);
     last_connect_index = index;
+    cur_server_index = -1;
 
     struct CLIENT_CHECK_MEMBER_REQ_MSG check_member_req_msg;
     check_member_req_msg.msg.type = MEMBER_CHECK_REQ;
@@ -251,7 +261,7 @@ static void user_command() {
     }
 
     if (email_num < 0) {
-      printf("you should request email list first.\n");
+      printf("the email list may has changed, you should request email list first.\n");
       break;
     }
 
@@ -287,7 +297,7 @@ static void user_command() {
     }
 
     if (email_num < 0) {
-      printf("you should request email list first.\n");
+      printf("the email list may has changed, you should request email list first.\n");
       break;
     }
 
@@ -373,7 +383,6 @@ static void read_message() {
         Is_caused_disconnect_mess(service_type) ||
         Is_caused_network_mess(service_type)) {
 
-      /*TODO check server or client */
       if (strcmp(user_name, sender) == 0)
         return;
 
