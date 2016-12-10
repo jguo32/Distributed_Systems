@@ -69,11 +69,6 @@ int main(int argc, char *argv[]) {
 
 static void user_command() {
   char command[130];
-  // char mess[MAX_MESSLEN];
-  // char group[80];
-  // char groups[10][MAX_GROUP_NAME];
-  // int num_groups;
-  // unsigned int mess_len;
   int ret;
   int i;
 
@@ -108,10 +103,7 @@ static void user_command() {
     printf("User logged in as: %s\n", user_name);
 
     ret = SP_join(Mbox, user_name);
-
     email_num = -1;
-
-    // cur_server_index = -1;
 
     if (ret < 0) {
       SP_error(ret);
@@ -157,7 +149,6 @@ static void user_command() {
     struct CLIENT_CHECK_MEMBER_REQ_MSG check_member_req_msg;
     check_member_req_msg.msg.type = MEMBER_CHECK_REQ;
 
-    // check_member_req_msg.msg.type = MEMBERSHIP_REQ;
     check_member_req_msg.msg.source.type = CLIENT;
     ret = SP_multicast(Mbox, AGREED_MESS, "GLOBAL_SERVER_GROUP", 0,
                        sizeof(check_member_req_msg),
@@ -373,11 +364,6 @@ static void read_message() {
   }
 
   if (Is_membership_mess(service_type)) {
-    /*
-    printf("member: ");
-    printf(sender);
-    printf("\n");
-    */
     // Leave the group when server is down
     if ( /*Is_caused_leave_mess(service_type) || */
         Is_caused_disconnect_mess(service_type) ||
@@ -444,8 +430,6 @@ static void read_message() {
              i+1, read,
              email_list[i].email.from,
              email_list[i].email.subject);
-      printf("%-5d %-5d", email_list[i].server_index,
-             email_list[i].email_index);
 
       printf("\n");
     }
@@ -454,13 +438,12 @@ static void read_message() {
 
   } else if (msg.type == READ_EMAIL_RES) {
 
-    /*TODO check if has to update lst*/
     struct SERVER_EMAIL_RES_MSG email_msg;
     memcpy(&email_msg, mess, sizeof(email_msg));
     if (email_msg.exist == 0) {
       printf("\nthe email has already been deleted by other machine");
     } else {
-      printf("\nto:      %s\nsubject: %s\n%s\n", email_msg.email.to,
+      printf("\nTo:      %s\nSubject: %s\nContent:%s\n", email_msg.email.to,
              email_msg.email.subject, email_msg.email.content);
     }
     printf("\nUser> ");
@@ -491,16 +474,12 @@ static void read_message() {
     fflush(stdout);
   } else if (msg.type == INFO_CHANGE) {
     email_num = -1;
-    //printf("\nemail num(come) %d\n", email_num);
-    //printf("\nUser> ");
-    //fflush(stdout);
   } else if (msg.type == MEMBER_CHECK_RES) {
 
     struct SERVER_CHECK_MEMBER_RES_MSG check_member_res_msg;
     memcpy(&check_member_res_msg, mess, sizeof(check_member_res_msg));
 
     if (check_member_res_msg.group_members[last_connect_index] == 1) {
-
       // Join the public group of the designated server
       char public_group[80];
       strcpy(public_group, "public_group_");
